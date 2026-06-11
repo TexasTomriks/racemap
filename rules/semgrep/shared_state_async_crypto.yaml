@@ -1,0 +1,44 @@
+rules:
+  - id: racemap-shared-iv-no-snapshot
+    languages: [c]
+    severity: WARNING
+    message: >
+      Shared crypto state (ctx->iv / ctx->key / ctx->info) is passed by pointer
+      into an asynchronous skcipher/aead request setter without a per-request
+      snapshot. If the field is mutated by a concurrent path (e.g. another
+      sendmsg) after the protecting lock is released, the deferred crypto
+      operation uses attacker-controlled state. Remediation: memcpy the
+      field into a per-request buffer under lock before the setter.
+    metadata:
+      subsystem: [crypto, net, drivers/char]
+      ground_truth: crypto/algif_skcipher.c
+      reference: missing per-request IV snapshot in async crypto handoff
+      cwe: "CWE-362: Concurrent Execution using Shared Resource with Improper Synchronization"
+    patterns:
+      - pattern-either:
+          - pattern: skcipher_request_set_crypt($REQ, $SRC, $DST, $LEN, $CTX->iv)
+          - pattern: skcipher_request_set_crypt($REQ, $SRC, $DST, $LEN, $CTX->info)
+          - pattern: aead_request_set_crypt($REQ, $SRC, $DST, $LEN, $CTX->iv)
+      # Exonerate when a snapshot of the same field was taken just before.
+      - pattern-not-inside: |
+          memcpy($IV, $CTX->iv, ...);
+          ...
+          skcipher_request_set_crypt($REQ, $SRC, $DST, $LEN, $IV);
+
+  - id: racemap-inplace-aead-decrypt-no-cow
+    languages: [c]
+    severity: INFO
+    message: >
+      In-place AEAD decrypt (src == dst) without a visible skb_has_shared_frag()
+      / skb_cow_data() guard. Shared page-cache fragments may be decrypted in
+      place. Matches the net/tipc/crypto.c gap relative to the ESP fix
+      (CVE-2026-43284).
+    metadata:
+      subsystem: [net]
+      ground_truth: net/tipc/crypto.c
+      reference: "ESP fix f4c50a4034e6 (CVE-2026-43284)"
+    patterns:
+      - pattern: aead_request_set_crypt($REQ, $SG, $SG, $LEN, ...)
+      - pattern-not-inside: |
+          if (skb_has_shared_frag(...)) { ... }
+          ...

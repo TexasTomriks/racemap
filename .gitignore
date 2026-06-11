@@ -1,0 +1,17 @@
+# Reviewer-facing / embargoed material — never commit
+docs/submission_evidence.md
+submission_evidence.md
+
+# Generated artifacts
+results/
+web/screenshots/
+*.db
+*.sqlite
+__pycache__/
+*.pyc
+
+# Secrets
+.env
+*.key
+
+web/demo_record.py

@@ -1,0 +1,78 @@
+rules:
+  - id: racemap-io-uring-fixed-buffer-no-copy
+    languages: [c]
+    severity: WARNING
+    message: >
+      io_uring registered buffer (req->imu / imu->bvec) passed to a crypto or
+      network operation without copying into a kernel-owned buffer or unpinning
+      first. Userspace can mutate the still-mapped pages between submit and
+      execute. Copy into a bounce buffer and unpin_user_page() before the async op.
+    metadata:
+      pattern: A
+      subsystem: [io_uring]
+      cwe: "CWE-362: Concurrent Execution using Shared Resource with Improper Synchronization"
+    patterns:
+      - pattern: skcipher_request_set_crypt($REQ, $IMU->bvec, ...)
+      - pattern-not-inside: |
+          memcpy(...);
+          ...
+          unpin_user_page(...);
+          ...
+
+  - id: racemap-splice-pipe-page-no-get
+    languages: [c]
+    severity: WARNING
+    message: >
+      splice path consumes a pipe_inode_info page (pipe->bufs[].page) without a
+      pipe_buf_get()/.get callback or copy_page after the pipe lock is dropped.
+      A racing pipe writer can recycle the page. Take a reference before use.
+    metadata:
+      pattern: B
+      subsystem: [fs]
+    patterns:
+      - pattern: $SINK(..., $PIPE->bufs[$I].page, ...)
+      - pattern-not-inside: |
+          pipe_buf_get($PIPE, &$PIPE->bufs[$I]);
+          ...
+
+  - id: racemap-vmsplice-gup-no-cow
+    languages: [c]
+    severity: WARNING
+    message: >
+      get_user_pages() result fed into a crypto request without set_page_dirty /
+      put_page or copy_page. The user page is aliased into the kernel with no
+      copy-on-write enforcement; userspace can mutate it mid-operation.
+    metadata:
+      pattern: C
+      subsystem: [fs]
+    patterns:
+      - pattern: |
+          get_user_pages(...);
+          ...
+          aead_request_set_crypt($AREQ, $SG, $SG, ...);
+      - pattern-not: |
+          get_user_pages(...);
+          ...
+          put_page(...);
+          ...
+
+  - id: racemap-zerocopy-skb-shared-write
+    languages: [c]
+    severity: WARNING
+    message: >
+      skb mutated after skb_zerocopy()/zerocopy_clone without skb_unshare().
+      Shared skb data is written while the refcount is greater than one. Call
+      skb_unshare() (deep copy when shared) before mutating skb->data.
+    metadata:
+      pattern: D
+      subsystem: [net]
+    patterns:
+      - pattern: |
+          skb_zerocopy($SKB, ...);
+          ...
+          $SKB->data[...] = ...;
+      - pattern-not: |
+          skb_zerocopy($SKB, ...);
+          ...
+          $SKB = skb_unshare($SKB, ...);
+          ...

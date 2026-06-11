@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RACEMAP // Kernel Race Scanner</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+  <script src="/static/d3.min.js"></script>
+</head>
+<body>
+  <header id="topbar">
+    <div class="logo">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linejoin="round"><path d="M12 2l8.7 5v10L12 22l-8.7-5V7z"/><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/></svg>
+      <span class="logo-name">RACEMAP</span><span class="version">v{{ version }}</span>
+    </div>
+    <button id="themeToggle" class="ghost" title="Toggle theme"></button>
+  </header>
+
+  <aside id="sidebar">
+    <div class="rail-h">Run</div>
+    <button id="runScan" class="primary full">
+      <svg class="icon" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M7 4v16l13-8z"/></svg>
+      <span class="lbl-text">Run Scan</span></button>
+
+    <div class="rail-h">Configuration</div>
+    <label class="lbl">Kernel path</label>
+    <input id="kpath" type="text" value="tests/sample_kernel" />
+    <label class="lbl">LLM backend</label>
+    <select id="llm">
+      {% for c in llm_choices %}<option value="{{ c }}" {% if c=='heuristic' %}selected{% endif %}>{{ c }}</option>{% endfor %}
+    </select>
+    <div class="hint">Keys read from environment / .env — see README. Heuristic needs no key.</div>
+    <label class="lbl">Kernel version</label>
+    <select id="kver">
+      {% for v in kernel_versions %}<option value="{{ v }}" {% if v=='6.8' %}selected{% endif %}>{{ v }}</option>{% endfor %}
+    </select>
+    <label class="row"><input id="patchGap" type="checkbox" checked /> Patch gap</label>
+
+    <div class="rail-h">Navigation</div>
+    <nav id="nav">
+      <a data-tab="scan" class="active">Scan</a>
+      <a data-tab="diff">Diff</a>
+      <a data-tab="live">Live Scan</a>
+      <a data-tab="patch">Patch Gap</a>
+      <a data-tab="cache">Cache</a>
+    </nav>
+
+    <div class="rail-h">Database</div>
+    <div id="dbStatus" class="muted small">Last updated: …</div>
+    <button id="updateDb" class="ghost full">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+      <span class="lbl-text">Update Patch DB</span></button>
+    <div class="rail-pad"></div>
+  </aside>
+
+  <main id="content">
+    <!-- SCAN -->
+    <section class="tab active" data-tab="scan">
+      <div id="scanTerminal" class="terminal hidden"></div>
+      <div id="scanMetrics" class="metrics hidden"></div>
+      <div id="backendNote" class="backend-note hidden"></div>
+      <div id="scanTabs" class="subtabs hidden">
+        <a data-sub="results" class="active">Results</a>
+        <a data-sub="analysis">Analysis</a>
+        <a data-sub="export">Export</a>
+      </div>
+      <div id="scanEmpty" class="empty">Enter a kernel path and press <b>Run Scan</b> to begin.</div>
+      <div class="subpane active" data-sub="results">
+        <div id="chartWrap"></div>
+        <div id="pager"></div>
+        <div id="resultsTable"></div>
+      </div>
+      <div class="subpane" data-sub="analysis"><div id="analysisCards"></div></div>
+      <div class="subpane" data-sub="export"><div id="exportPane"></div></div>
+    </section>
+
+    <!-- DIFF -->
+    <section class="tab" data-tab="diff">
+      <h2>Diff — compare two kernel trees</h2>
+      <div class="grid2">
+        <div><label class="lbl">Old tree</label><input id="diffOld" type="text" value="tests/sample_kernel_old" /></div>
+        <div><label class="lbl">New tree</label><input id="diffNew" type="text" value="tests/sample_kernel_new" /></div>
+      </div>
+      <button id="runDiff" class="primary narrow"><span class="lbl-text">Run Diff</span></button>
+      <div id="diffResult"></div>
+    </section>
+
+    <!-- LIVE -->
+    <section class="tab" data-tab="live">
+      <h2>Bring your own driver</h2>
+      <label class="lbl">Demo preset</label>
+      <select id="livePreset">
+        <option value="">(none)</option>
+        {% for p in presets %}<option value="{{ p }}">{{ p }}</option>{% endfor %}
+      </select>
+      <label class="lbl up-label">Upload a .c file</label>
+      <div id="dropzone" class="dropzone">Drop a .c file here, or click to browse
+        <input id="fileInput" type="file" accept=".c" hidden /></div>
+      <button id="runLive" class="primary narrow"><span class="lbl-text">Initialize Scan</span></button>
+      <div id="liveResult"></div>
+    </section>
+
+    <!-- PATCH -->
+    <section class="tab" data-tab="patch">
+      <h2>Patch gap analysis</h2>
+      <div id="patchResult" class="muted">Run a scan first — missing patches appear here.</div>
+    </section>
+
+    <!-- CACHE -->
+    <section class="tab" data-tab="cache">
+      <h2>Response cache</h2>
+      <div id="cacheStatus" class="muted">…</div>
+      <button id="clearCache" class="ghost narrow"><span class="lbl-text">Clear cache</span></button>
+    </section>
+
+    <div id="footer">racemap v{{ version }} · Linux kernel race condition scanner</div>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

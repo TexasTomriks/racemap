@@ -1,0 +1,36 @@
+rules:
+  - id: racemap-io-uring-net-send-no-copy
+    languages: [c]
+    severity: WARNING
+    message: >
+      io_uring registered buffer (io_mapped_ubuf / req->imu) sent over the
+      network without a copy. The submitter still maps the pages and can mutate
+      them mid-send. Copy into a kernel buffer before kernel_sendmsg/sock_sendmsg.
+    metadata:
+      subsystem: [io_uring]
+      affected_from: "5.1"
+      cwe: "CWE-362: Concurrent Execution using Shared Resource"
+    patterns:
+      - pattern-either:
+          - pattern: kernel_sendmsg($SOCK, $MSG, $IMU->bvec, ...)
+          - pattern: sock_sendmsg($SOCK, $MSG)
+      - pattern-not-inside: |
+          memcpy(...);
+          ...
+
+  - id: racemap-io-uring-fixed-buffer-no-copy
+    languages: [c]
+    severity: WARNING
+    message: >
+      io_uring registered buffer fed to a crypto request in-place without a copy
+      or unpin. Bounce-copy and unpin_user_page() before the async op.
+    metadata:
+      subsystem: [io_uring]
+      affected_from: "5.1"
+    patterns:
+      - pattern: skcipher_request_set_crypt($REQ, $IMU->bvec, $IMU->bvec, ...)
+      - pattern-not-inside: |
+          memcpy(...);
+          ...
+          unpin_user_page(...);
+          ...

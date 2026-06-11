@@ -1,0 +1,42 @@
+rules:
+  - id: racemap-cve-2022-0847-dirtypipe
+    languages: [c]
+    severity: ERROR
+    message: >
+      CVE-2022-0847 (Dirty Pipe): PIPE_BUF_FLAG_CAN_MERGE is set on a pipe buffer
+      whose ->flags was not zero-initialised, allowing a splice of read-only
+      page-cache pages to be merged into and overwritten via pipe_write(). Zero
+      buf->flags on allocation before any CAN_MERGE decision.
+    metadata:
+      cve: CVE-2022-0847
+      subsystem: [fs, lib]
+    patterns:
+      - pattern: $BUF->flags |= PIPE_BUF_FLAG_CAN_MERGE
+      - pattern-not-inside: |
+          $BUF->flags = 0;
+          ...
+
+  - id: racemap-cve-2022-2590-mmap-copy-user
+    languages: [c]
+    severity: ERROR
+    message: >
+      CVE-2022-2590 class: copy_{from,to}_user runs inside an mmap_read_lock
+      section without re-validating VMA stability (vma_lookup) after taking the
+      lock, so the fault can resolve against a stale VMA. Re-check the VMA before
+      the user copy.
+    metadata:
+      cve: CVE-2022-2590
+      subsystem: [mm]
+    patterns:
+      - pattern-either:
+          - pattern: |
+              mmap_read_lock($MM);
+              ...
+              copy_from_user(...);
+          - pattern: |
+              mmap_read_lock($MM);
+              ...
+              copy_to_user(...);
+      - pattern-not-inside: |
+          vma_lookup($MM, ...);
+          ...

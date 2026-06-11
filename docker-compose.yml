@@ -1,0 +1,22 @@
+# racemap — docker compose convenience wrapper.
+#
+# 1. Put (or symlink) your Linux kernel source under ./kernel/
+# 2. Build:    docker compose build
+# 3. Validate: docker compose run --rm racemap validate
+# 4. Scan:     docker compose run --rm racemap scan /kernel/net/ --kernel-version 6.8
+# 5. Benchmark (uses the bundled fixtures, no kernel needed):
+#              docker compose run --rm --entrypoint python racemap scripts/benchmark.py
+#
+services:
+  racemap:
+    build: .
+    image: racemap:latest
+    container_name: racemap
+    volumes:
+      # User drops kernel source into ./kernel on the host; container sees /kernel.
+      - ./kernel:/kernel:ro
+      # Persist JSON reports / benchmark results back to the host.
+      - ./results:/app/results
+    # Default to showing CLI help; override on the command line, e.g.:
+    #   docker compose run --rm racemap scan /kernel/crypto/ --llm heuristic
+    command: ["--help"]

@@ -1,0 +1,70 @@
+{
+  "description": "Ground-truth expectations for racemap. Covers the reported algif_skcipher race, four zero-copy attack-surface patterns (A-D), and two known CVEs. Each pattern/CVE fixture holds a vulnerable and a fixed variant via #ifdef FIXED; the scanner must flag the vulnerable variant as likely_race and exonerate the fixed variant.",
+  "algif": {
+    "vulnerable": "ground_truth/algif_skcipher_vulnerable.c",
+    "fixed": "ground_truth/algif_skcipher_fixed.c",
+    "shared_field": "ctx->iv",
+    "expected_verdict": "likely_race",
+    "impact": [
+      "unsnapshotted shared state passed to async request",
+      "data-confidentiality impact (details under embargo)"
+    ],
+    "report": "Under coordinated disclosure \u2014 CVE pending."
+  },
+  "cases": [
+    {
+      "id": "io_uring_fixed_buffer",
+      "pattern": "A",
+      "path": "sample_kernel/io_uring/io_uring_crypto.c",
+      "shared_field": "req->imu",
+      "expect_race": true,
+      "expect_safe": true,
+      "rationale": "io_uring registered buffer fed to crypto without copy/unpin."
+    },
+    {
+      "id": "splice_pipe_page",
+      "pattern": "B",
+      "path": "sample_kernel/fs/splice_race.c",
+      "shared_field": "pipe->bufs[].page",
+      "expect_race": true,
+      "expect_safe": true,
+      "rationale": "pipe page consumed without pipe_buf_get/.get callback."
+    },
+    {
+      "id": "vmsplice_gup",
+      "pattern": "C",
+      "path": "sample_kernel/fs/vmsplice_race.c",
+      "shared_field": "gup pages",
+      "expect_race": true,
+      "expect_safe": true,
+      "rationale": "get_user_pages result fed to AEAD without COW/put_page."
+    },
+    {
+      "id": "zerocopy_skb",
+      "pattern": "D",
+      "path": "sample_kernel/net/zerocopy_race.c",
+      "shared_field": "skb_shared_info",
+      "expect_race": true,
+      "expect_safe": true,
+      "rationale": "skb mutated after skb_zerocopy without skb_unshare."
+    },
+    {
+      "id": "cve_2022_0847_dirtypipe",
+      "path": "ground_truth/cve_2022_0847/dirtypipe.c",
+      "cve_id": "CVE-2022-0847",
+      "shared_field": "buf->flags CAN_MERGE",
+      "expect_race": true,
+      "expect_safe": true,
+      "rationale": "PIPE_BUF_FLAG_CAN_MERGE without flag init / page-ownership check (Dirty Pipe)."
+    },
+    {
+      "id": "cve_2022_2590_mmap",
+      "path": "ground_truth/cve_2022_2590/mmap_copy.c",
+      "cve_id": "CVE-2022-2590",
+      "shared_field": "copy_user under mmap_read_lock",
+      "expect_race": true,
+      "expect_safe": true,
+      "rationale": "copy_from_user under mmap_read_lock with no VMA stability re-check."
+    }
+  ]
+}
