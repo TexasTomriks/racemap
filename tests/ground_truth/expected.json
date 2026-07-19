@@ -1,5 +1,5 @@
 {
-  "description": "Ground-truth expectations for racemap. Covers the reported algif_skcipher race, four zero-copy attack-surface patterns (A-D), and two known CVEs. Each pattern/CVE fixture holds a vulnerable and a fixed variant via #ifdef FIXED; the scanner must flag the vulnerable variant as likely_race and exonerate the fixed variant.",
+  "description": "Ground-truth expectations for racemap. Covers the reported algif_skcipher race, four zero-copy attack-surface patterns (A-D), and three known CVEs (CVE-2022-0847 Dirty Pipe, CVE-2022-2590, CVE-2026-43284 Dirty Frag). Each pattern/CVE fixture holds a vulnerable and a fixed variant via #ifdef FIXED; the scanner must flag the vulnerable variant as likely_race and exonerate the fixed variant.",
   "algif": {
     "vulnerable": "ground_truth/algif_skcipher_vulnerable.c",
     "fixed": "ground_truth/algif_skcipher_fixed.c",
@@ -65,6 +65,14 @@
       "expect_race": true,
       "expect_safe": true,
       "rationale": "copy_from_user under mmap_read_lock with no VMA stability re-check."
+    },
+    {
+      "id": "cve_2026_43284_dirtyfrag",
+      "path": "ground_truth/cve_2026_43284/tipc_inplace.c",
+      "shared_field": "skb(shared_frag)",
+      "expect_race": true,
+      "expect_safe": true,
+      "rationale": "In-place AEAD decrypt (src == dst) over an skb with possibly-shared fragments and no skb_has_shared_frag() guard — the ESP in-place-decryption bug, CVE-2026-43284 (Dirty Frag), expressed against the equivalent TIPC path. The fixed variant adds the shared-fragment guard."
     }
   ]
 }

@@ -424,12 +424,16 @@ class Scanner:
 
             call_window = " ".join(lines[max(0, i - 1): i + 3])
             if _INPLACE_RE.search(call_window):
-                guard_lines = [
-                    ln for ln in lines[max(0, i - 30): i + 5]
-                    if not ln.lstrip().startswith(("*", "//", "/*"))
-                ]
-                if "skb_has_shared_frag" in "\n".join(guard_lines):
-                    continue
+                # An skb_has_shared_frag() guard in the same preprocessor branch
+                # is the ESP-style mitigation. Emit the candidate either way and
+                # let triage exonerate the guarded one, which is what every
+                # other detector does; dropping it outright hid the *fixed*
+                # variant of the pattern from the ground-truth pair. Uses the
+                # preprocessor-aware window so a #ifndef FIXED branch cannot
+                # read the guard out of its paired #else branch.
+                guarded = "skb_has_shared_frag" in _clip_window(
+                    lines, i - 1, 30, 5, strip_comments=True
+                )
                 results.append(
                     Candidate(
                         rule_id="racemap.inplace-decrypt-no-cow",
@@ -446,7 +450,7 @@ class Scanner:
                             "CVE-2026-43284)."
                         ),
                         shared_field="skb(shared_frag)",
-                        mitigation_present=False,
+                        mitigation_present=guarded,
                     )
                 )
         return results

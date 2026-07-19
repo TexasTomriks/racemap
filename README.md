@@ -11,6 +11,10 @@ positives by judging whether each candidate is already adequately protected.
 
 ![Scan results](docs/screenshots/scan.png)
 
+*Recorded on v1.0, before the disclosure went public — this screenshot predates
+the demo-fixture aliasing described under [Web UI](#web-ui) and so shows the
+real identifiers.*
+
 ## How it works
 
 racemap is two layers:
@@ -127,18 +131,21 @@ as `ctx->shared_buf`, `algif_skcipher` shows as `crypto_subsystem`). This is a
 display-only substitution in `web/server.py`; it never touches the underlying
 detector, the CLI, or a scan of a real kernel tree — those always show the
 real identifiers, as named in the [Disclosure](#disclosure) section below.
+The JSON / CSV / SARIF exports are likewise always verbatim: the aliasing is
+view-only, so a downloaded report never matches the on-screen labels for these
+two fixtures.
 
 An alternate Streamlit dashboard (`src/ui/app.py`, not used in the demo video)
 is also included: `streamlit run src/ui/app.py`.
 
 ## Validation
 
-racemap ships a ground-truth set drawn from real kernel crypto code and two
-public CVEs — Dirty Pipe (CVE-2022-0847) and a `copy_from_user`-under-
-`mmap_read_lock` VMA-stability bug (CVE-2022-2590) — each fixture carrying a
+racemap ships a ground-truth set drawn from real kernel crypto code and three
+public CVEs — Dirty Pipe (CVE-2022-0847), a `copy_from_user`-under-
+`mmap_read_lock` VMA-stability bug (CVE-2022-2590), and the ESP
+in-place-decryption bug Dirty Frag (CVE-2026-43284) — each fixture carrying a
 vulnerable and a fixed variant; the scanner must flag the former and exonerate
-the latter. The rule set is additionally informed by the ESP in-place-decryption
-fix for Dirty Frag (CVE-2026-43284).
+the latter.
 
 On the bundled sample tree, racemap surfaces 12 likely races across 23
 candidates at a 0% measured false-positive rate against the ground truth,

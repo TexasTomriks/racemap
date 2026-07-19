@@ -4,7 +4,9 @@ racemap must:
   * retroactively surface the algif_skcipher race and exonerate its fix,
   * flag each zero-copy attack-surface pattern (A-D) vulnerable variant and
     exonerate the fixed variant,
-  * surface the two known CVEs (Dirty Pipe, mmap_lock race) with their cve_id.
+  * surface the known CVEs — Dirty Pipe and the mmap_lock race carry a cve_id;
+    Dirty Frag (CVE-2026-43284) is measured as a vulnerable/fixed pair only,
+    since the in-place-decrypt detector does not tag candidates with a cve_id.
 
 All run with the regex-fallback scanner + heuristic triage, so they pass with
 no kernel toolchain, no Ollama and no API key.
