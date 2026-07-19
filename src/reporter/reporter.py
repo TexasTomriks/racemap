@@ -256,7 +256,7 @@ class Reporter:
         )
         for r in hits:
             c = r.candidate
-            fix = f" (fixed in {c.fixed_in})" if c.fixed_in else " (no fix yet)"
+            fix = f" (fixed in {c.fixed_in})" if c.fixed_in else " (no fixed_in on record — check upstream)"
             cve = f" {c.cve_id}" if c.cve_id else ""
             self.console.print(
                 f"  [yellow]\u26A0[/yellow] {_redact(c.location, c)}{cve} — "

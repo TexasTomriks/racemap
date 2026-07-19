@@ -51,6 +51,10 @@ detection. It classifies each candidate as *likely race*, *likely safe*, or
 ```bash
 docker build -t racemap .
 docker run --rm racemap scan <path>
+
+# Web UI (overrides the CLI entrypoint, maps the Flask port)
+docker run --rm -p 5005:5005 --entrypoint python racemap web/server.py
+# open http://127.0.0.1:5005
 ```
 
 **pip:**
@@ -103,12 +107,60 @@ python main.py scan /path/to/linux --output sarif
 
 Run `python main.py --help` (or `<command> --help`) for the full option list.
 
+## Web UI
+
+racemap ships a Flask web UI (the one shown in the demo video) alongside the
+CLI — Scan, Diff, Live "bring your own driver" scan, Patch Gap, and Cache
+views, plus an interactive per-candidate call-graph.
+
+```bash
+python web/server.py
+# open http://127.0.0.1:5005
+```
+
+Note: when the scanned target is one of the bundled demo fixtures
+(`tests/sample_kernel` or `tests/ground_truth`), the web UI displays a few
+identifiers under generic aliases for the on-screen demo (e.g. `ctx->iv` shows
+as `ctx->shared_buf`, `algif_skcipher` shows as `crypto_subsystem`). This is a
+display-only substitution in `web/server.py`; it never touches the underlying
+detector, the CLI, or a scan of a real kernel tree — those always show the
+real identifiers, as named in the [Disclosure](#disclosure) section below.
+
+An alternate Streamlit dashboard (`src/ui/app.py`, not used in the demo video)
+is also included: `streamlit run src/ui/app.py`.
+
+## Validation
+
+racemap ships a ground-truth set drawn from real kernel crypto code and two
+public CVEs — Dirty Pipe (CVE-2022-0847) and a `copy_from_user`-under-
+`mmap_read_lock` VMA-stability bug (CVE-2022-2590) — each fixture carrying a
+vulnerable and a fixed variant; the scanner must flag the former and exonerate
+the latter. The rule set is additionally informed by the ESP in-place-decryption
+fix for Dirty Frag (CVE-2026-43284).
+
+On the bundled sample tree, racemap surfaces 12 likely races across 23
+candidates at a 0% measured false-positive rate against the ground truth,
+reproducible offline:
+
+```bash
+python main.py clear-cache && python main.py scan tests/sample_kernel --llm heuristic
+```
+
 ## Disclosure
 
-racemap's ground-truth validation set includes a real async-request race
-pattern in a Linux kernel crypto subsystem, reported under coordinated
-disclosure. The tool retroactively flags this pattern with high confidence. No
-proof-of-concept or exploit code is included in this repository.
+racemap's ground-truth set includes a real async-request IV race in
+`crypto/algif_skcipher.c`, discovered and reported to security@kernel.org
+under coordinated disclosure (2026-06-07), with the fix authored by the same
+researcher. The stable maintainers accepted the series on 2026-07-17, queuing
+it for 7.1.y, 6.18.y, 6.12.y, 6.6.y, 6.1.y, 5.15.y, and 5.10.y. Technical
+analysis and the patch series are public:
+https://lore.kernel.org/linux-crypto/20260716025838.2672-1-muhammetkaankilinc@gmail.com/
+
+A CVE is expected once the fix ships in a released stable kernel — the Linux
+CNA assigns after release, not on acceptance. No proof-of-concept or exploit
+code is included in this repository; the working PoC stays unpublished until
+the fix reaches released stable kernels, per the commitment made in the patch
+cover letter.
 
 ## License
 

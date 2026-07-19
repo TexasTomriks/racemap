@@ -38,17 +38,18 @@ Note "Must surface the reported shared-IV race and exonerate the snapshotted fix
 Pause-Demo
 
 Section "STEP 2 - Scan a sample kernel tree (offline heuristic triage)"
-Note "Subsystems: net/, crypto/, drivers/char/  -  expect 4 races + 3 safe."
+Note "Default subsystems (net/, crypto/, drivers/char/, io_uring/, fs/, mystery/)"
+Note "- expect 12 likely races across 23 candidates, 0% measured false-positive rate."
 & $PY main.py scan tests/sample_kernel/ --llm heuristic --kernel-version 6.8.0-124 --json racemap_report.json
 Note "Ranked JSON written to racemap_report.json"
 Pause-Demo
 
 Section "STEP 3 - Switch the triage backend with --llm"
-Note "Same pipeline, swappable LLM. Local/private (ollama) is the default;"
-Note "anthropic / openai / gemini are cloud fallbacks; heuristic is fully offline."
-Note "Backends auto-fall back to the heuristic when a key/server is absent."
+Note "Same pipeline, swappable LLM. heuristic (fully offline, deterministic) is"
+Note "the default; ollama is local/private; anthropic / openai / gemini are cloud"
+Note "options. Backends auto-fall back to the heuristic when a key/server is absent."
 Write-Host ""
-Note '$ racemap scan tests/sample_kernel/ --llm ollama     # local, private (default)'
+Note '$ racemap scan tests/sample_kernel/ --llm ollama     # local, private'
 & $PY main.py scan tests/sample_kernel/ --llm ollama --quiet --json racemap_ollama.json
 Note "  (no Ollama server here -> transparently fell back to heuristic)"
 Write-Host ""

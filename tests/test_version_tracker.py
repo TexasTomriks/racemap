@@ -60,4 +60,4 @@ def test_kernel_is_affected_respects_fix():
 def test_kernel_is_affected_open_pattern():
     c = _cand(shared_field="ctx->iv")
     version_tracker.annotate(c)
-    assert kernel_is_affected(c, "6.8") is True       # open-ended, no fix yet
+    assert kernel_is_affected(c, "6.8") is True       # open-ended: fix is queued for stable but not yet in a released point release

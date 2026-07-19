@@ -18,7 +18,11 @@ VERSION_DB: dict[str, dict] = {
     "CVE-2022-0847": {"affected": ["5.8", "5.16"], "fixed_in": "5.16.11"},
     "CVE-2022-2590": {"affected": ["5.16", "6.0"], "fixed_in": "6.0.8"},
     # racemap-detected patterns (keyed by Candidate.shared_field primitive).
-    "ctx->iv": {"affected": ["6.1", "6.8+"], "fixed_in": None},          # algif_skcipher (our finding)
+    # ctx->iv / ctx->info: algif_skcipher IV race (our finding, reported 2026-06-07).
+    # Fix accepted by stable maintainers 2026-07-17, queued for 7.1.y/6.18.y/6.12.y/
+    # 6.6.y/6.1.y/5.15.y/5.10.y. fixed_in stays None until the fix lands in a
+    # released stable point release — update once a point release ships.
+    "ctx->iv": {"affected": ["6.1", "6.8+"], "fixed_in": None},
     "ctx->info": {"affected": ["6.1", "6.8+"], "fixed_in": None},
     "pipe->bufs[].page": {"affected": ["4.9", "6.8+"], "fixed_in": None},  # splice/pipe
     "gup pages": {"affected": ["4.0", "6.8+"], "fixed_in": None},          # vmsplice

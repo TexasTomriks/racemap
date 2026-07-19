@@ -31,18 +31,19 @@ $PY main.py validate
 pause
 
 section "STEP 2 — Scan a sample kernel tree (offline heuristic triage)"
-note "Subsystems: net/, crypto/, drivers/char/  —  expect 4 races + 3 safe."
+note "Default subsystems (net/, crypto/, drivers/char/, io_uring/, fs/, mystery/)"
+note "— expect 12 likely races across 23 candidates, 0% measured false-positive rate."
 $PY main.py scan tests/sample_kernel/ --llm heuristic --kernel-version 6.8.0-124 \
     --json racemap_report.json
 note "Ranked JSON written to racemap_report.json"
 pause
 
 section "STEP 3 — Switch the triage backend with --llm"
-note "Same pipeline, swappable LLM. Local/private (ollama) is the default;"
-note "anthropic / openai / gemini are cloud fallbacks; heuristic is fully offline."
-note "Backends auto-fall back to the heuristic when a key/server is absent."
+note "Same pipeline, swappable LLM. heuristic (fully offline, deterministic) is"
+note "the default; ollama is local/private; anthropic / openai / gemini are cloud"
+note "options. Backends auto-fall back to the heuristic when a key/server is absent."
 echo
-note "\$ racemap scan tests/sample_kernel/ --llm ollama     # local, private (default)"
+note "\$ racemap scan tests/sample_kernel/ --llm ollama     # local, private"
 $PY main.py scan tests/sample_kernel/ --llm ollama --quiet --json /tmp/racemap_ollama.json
 note "  (no Ollama server here → transparently fell back to heuristic)"
 echo

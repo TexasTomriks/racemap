@@ -7,9 +7,9 @@
     "expected_verdict": "likely_race",
     "impact": [
       "unsnapshotted shared state passed to async request",
-      "data-confidentiality impact (details under embargo)"
+      "data-confidentiality impact on the async request path"
     ],
-    "report": "Under coordinated disclosure \u2014 CVE pending."
+    "report": "Reported to security@kernel.org (2026-06-07); fix authored by the same researcher and accepted by the stable maintainers (2026-07-17), queued for 7.1.y, 6.18.y, 6.12.y, 6.6.y, 6.1.y, 5.15.y, 5.10.y. Public: https://lore.kernel.org/linux-crypto/20260716025838.2672-1-muhammetkaankilinc@gmail.com/. CVE assignment pending release in a stable point release."
   },
   "cases": [
     {

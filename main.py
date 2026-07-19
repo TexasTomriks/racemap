@@ -10,7 +10,8 @@ generates exploits.
 
 Examples
 --------
-  # Scan a kernel tree (net/, crypto/, drivers/char/ by default)
+  # Scan a kernel tree (net/, crypto/, drivers/char/, io_uring/, fs/, and the
+  # bundled "mystery" driver fixture, by default)
   python main.py scan /path/to/linux
 
   # Validate against the bundled crypto-subsystem ground truth (self-contained, offline)
@@ -120,12 +121,14 @@ def cli(ctx, update_db) -> None:
 @cli.command()
 @click.argument("target", type=click.Path(exists=True, path_type=Path))
 @click.option("--subsystem", "subsystems", multiple=True,
-              help="Subsystem to scope (repeatable). Default: net, crypto, drivers/char.")
+              help="Subsystem to scope (repeatable). Default: net, crypto, drivers/char, io_uring, fs, mystery.")
 @click.option("--llm", type=click.Choice(LLM_CHOICES),
-              default="ollama", show_default=True,
-              help="Triage backend. 'auto' tries ollama -> anthropic -> openai "
-                   "-> gemini -> heuristic. Selected backend always falls back "
-                   "to the offline heuristic if unavailable.")
+              default="heuristic", show_default=True,
+              help="Triage backend. Defaults to the offline heuristic so a bare "
+                   "'scan' is deterministic and reproducible with no API key or "
+                   "local server required. 'auto' tries ollama -> anthropic -> "
+                   "openai -> gemini -> heuristic. Selected backend always falls "
+                   "back to the offline heuristic if unavailable.")
 @click.option("--ollama-model", default="llama3.2", show_default=True)
 @click.option("--kernel-version", default=None, help="Recorded in the report metadata.")
 @click.option("--json", "json_out", type=click.Path(path_type=Path), default=None,

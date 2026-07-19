@@ -10,7 +10,10 @@ anthropic>=0.34            # --llm anthropic   (ANTHROPIC_API_KEY)
 openai>=1.0                # --llm openai      (OPENAI_API_KEY)
 google-genai>=1.0           # --llm gemini      (GEMINI_API_KEY)
 
-# Web UI (src/ui/app.py)
+# Web UI — Flask (web/server.py + web/templates), the UI used in the demo video
+flask>=3.0
+
+# Alternate Web UI — Streamlit (src/ui/app.py), not used in the demo video
 streamlit>=1.30
 pandas>=2.0
 plotly>=5.18

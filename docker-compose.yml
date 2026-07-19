@@ -6,6 +6,9 @@
 # 4. Scan:     docker compose run --rm racemap scan /kernel/net/ --kernel-version 6.8
 # 5. Benchmark (uses the bundled fixtures, no kernel needed):
 #              docker compose run --rm --entrypoint python racemap scripts/benchmark.py
+# 6. Web UI (the one shown in the demo video):
+#              docker compose up web
+#              open http://127.0.0.1:5005
 #
 services:
   racemap:
@@ -20,3 +23,15 @@ services:
     # Default to showing CLI help; override on the command line, e.g.:
     #   docker compose run --rm racemap scan /kernel/crypto/ --llm heuristic
     command: ["--help"]
+
+  web:
+    build: .
+    image: racemap:latest
+    container_name: racemap-web
+    entrypoint: ["python"]
+    command: ["web/server.py"]
+    ports:
+      - "5005:5005"
+    volumes:
+      - ./kernel:/kernel:ro
+      - ./results:/app/results

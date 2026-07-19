@@ -9,6 +9,9 @@ web/screenshots/
 *.sqlite
 __pycache__/
 *.pyc
+.pytest_cache/
+racemap_report.json
+racemap_ollama.json
 
 # Secrets
 .env
