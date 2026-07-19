@@ -168,7 +168,7 @@ def validate(llm, json_out):
     fixed = triage.triage(scanner.scan(gt / "algif_skcipher_fixed.c"))
 
     report = ScanReport(
-        target="ground_truth/crypto_subsystem",
+        target="ground_truth/algif_skcipher",
         kernel_version="6.8.0-124-generic",
         subsystems=["crypto"],
         candidates_found=len(vuln) + len(fixed),

@@ -52,8 +52,10 @@ detection. It classifies each candidate as *likely race*, *likely safe*, or
 docker build -t racemap .
 docker run --rm racemap scan <path>
 
-# Web UI (overrides the CLI entrypoint, maps the Flask port)
-docker run --rm -p 5005:5005 --entrypoint python racemap web/server.py
+# Web UI (overrides the CLI entrypoint, maps the Flask port; RACEMAP_HOST is
+# required — binding to the default 127.0.0.1 inside the container would be
+# unreachable from the host despite the port mapping)
+docker run --rm -p 5005:5005 -e RACEMAP_HOST=0.0.0.0 --entrypoint python racemap web/server.py
 # open http://127.0.0.1:5005
 ```
 

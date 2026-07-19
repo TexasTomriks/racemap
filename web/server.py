@@ -317,4 +317,10 @@ def static_files(p):
 
 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=5005, debug=False)
+    import os as _os
+    # Defaults to loopback-only for safety on a bare-metal / local run. Inside
+    # Docker, RACEMAP_HOST=0.0.0.0 is required for the -p 5005:5005 port
+    # mapping to actually reach the process (binding to 127.0.0.1 inside the
+    # container is only reachable from within the container's own netns).
+    host = _os.environ.get("RACEMAP_HOST", "127.0.0.1")
+    app.run(host=host, port=5005, debug=False)

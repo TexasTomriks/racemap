@@ -30,6 +30,10 @@ services:
     container_name: racemap-web
     entrypoint: ["python"]
     command: ["web/server.py"]
+    environment:
+      # Required: binding to 127.0.0.1 (the safe default) would be unreachable
+      # from the host despite the port mapping below.
+      - RACEMAP_HOST=0.0.0.0
     ports:
       - "5005:5005"
     volumes:

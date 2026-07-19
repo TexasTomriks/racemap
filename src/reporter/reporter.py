@@ -28,53 +28,10 @@ _VERDICT_STYLE = {
 }
 
 
-# --------------------------------------------------------------------------- #
-# Display-only redaction for the two BUNDLED ground-truth fixtures.
-#
-# This is a pure render-time string transform. It never mutates Candidate /
-# TriageResult data, the fixture files, or anything tests assert on — it only
-# rewrites sensitive tokens as they are printed, and ONLY for the two bundled
-# ground-truth fixtures. Real kernel scans (any other path) render verbatim.
-# The sample-kernel file `algif_skcipher.c` is intentionally NOT matched.
-# --------------------------------------------------------------------------- #
-_GT_FIXTURES = ("algif_skcipher_vulnerable.c", "algif_skcipher_fixed.c")
-_REDACTIONS = (
-    ("algif_skcipher_vulnerable.c", "crypto_subsystem_vulnerable.c"),
-    ("algif_skcipher_fixed.c", "crypto_subsystem_fixed.c"),
-    ("algif_skcipher", "crypto_subsystem"),
-    ("ctx->iv", "ctx->(redacted)"),
-    ("algif", "crypto"),                 # bare subsystem label
-)
-
-
-def _basename(path: str) -> str:
-    return (path or "").rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
-
-
-def _is_gt_fixture(candidate) -> bool:
-    """True only for the two bundled ground-truth fixtures (scoped narrowly)."""
-    f = candidate.file or ""
-    return _basename(f) in _GT_FIXTURES or "ground_truth/algif_skcipher" in f
-
-
-def _scrub(text: str) -> str:
-    if not text:
-        return text
-    for old, new in _REDACTIONS:
-        text = text.replace(old, new)
-    return text
-
-
-def _redact(text: str, candidate) -> str:
-    """Scrub sensitive tokens from text, but only for bundled GT fixtures."""
-    return _scrub(text) if _is_gt_fixture(candidate) else text
-
-
-def _redact_target(target: str) -> str:
-    """Scrub a report-level target string only when it names a GT fixture."""
-    markers = ("algif_skcipher_vulnerable", "algif_skcipher_fixed",
-               "ground_truth/algif_skcipher")
-    return _scrub(target) if any(m in (target or "") for m in markers) else target
+# NOTE: the terminal/CLI reporter renders every identifier verbatim, always —
+# no redaction here. (The web UI, web/server.py, does have a narrow display-
+# only substitution for the two bundled ground-truth fixtures, kept because
+# the submitted demo video shows that redacted web output; see README.)
 
 
 class Reporter:
@@ -152,7 +109,7 @@ class Reporter:
         ranked = report.ranked()
         header = (
             f"[bold]racemap[/bold] — shared / zero-copy race scan\n"
-            f"target: [cyan]{_redact_target(report.target)}[/cyan]   "
+            f"target: [cyan]{report.target}[/cyan]   "
             f"kernel: [cyan]{report.kernel_version or 'n/a'}[/cyan]   "
             f"candidates: [bold]{report.candidates_found}[/bold]"
         )
@@ -216,11 +173,11 @@ class Reporter:
                 str(i),
                 f"[{style}]{label}[/{style}]",
                 score_cell,
-                _redact(cc.location, cc),
-                _redact(prim, cc),
+                cc.location,
+                prim,
                 esc,
                 flags_cell,
-                _redact(reason_cell, cc),
+                reason_cell,
             )
         self.console.print(table)
 
@@ -259,8 +216,8 @@ class Reporter:
             fix = f" (fixed in {c.fixed_in})" if c.fixed_in else " (no fixed_in on record — check upstream)"
             cve = f" {c.cve_id}" if c.cve_id else ""
             self.console.print(
-                f"  [yellow]\u26A0[/yellow] {_redact(c.location, c)}{cve} — "
-                f"{_redact(c.shared_field, c)} affected {c.affected_versions}{fix}"
+                f"  [yellow]\u26A0[/yellow] {c.location}{cve} — "
+                f"{c.shared_field} affected {c.affected_versions}{fix}"
             )
         self.console.print("")
 
@@ -268,8 +225,8 @@ class Reporter:
         self.console.print("[bold]Reasoning steps (chain-of-thought)[/bold]\n")
         for i, r in enumerate(ranked, start=1):
             style, label = _VERDICT_STYLE[r.verdict]
-            loc = _redact(r.candidate.location, r.candidate)
-            body = "\n".join(f"  {_redact(s, r.candidate)}" for s in r.reasoning_steps) or "  (none)"
+            loc = r.candidate.location
+            body = "\n".join(f"  {s}" for s in r.reasoning_steps) or "  (none)"
             self.console.print(
                 Panel(
                     body,
@@ -281,15 +238,15 @@ class Reporter:
             )
 
     def _render_plain(self, report: ScanReport, verbose: bool = False) -> None:
-        print(f"racemap scan — target={_redact_target(report.target)} "
+        print(f"racemap scan — target={report.target} "
               f"candidates={report.candidates_found}")
         for i, r in enumerate(report.ranked(), start=1):
             cve = f" [{r.candidate.cve_id}]" if r.candidate.cve_id else ""
             esc = " [ESCAPE]" if r.candidate.container_escape_potential else ""
             print(f"{i:>3} [{r.verdict.value:<12}] {r.score:.2f} "
-                  f"{_redact(r.candidate.location, r.candidate)} "
-                  f"{_redact(r.candidate.shared_field, r.candidate) or '-'}{cve}{esc}")
-            print(f"      {_redact(r.reasoning, r.candidate)}")
+                  f"{r.candidate.location} "
+                  f"{r.candidate.shared_field or '-'}{cve}{esc}")
+            print(f"      {r.reasoning}")
             if verbose:
                 for step in r.reasoning_steps:
                     print(f"        - {step}")
