@@ -45,12 +45,14 @@ held up and are fixed here; two are recorded below as rejected or reworded.
   io_uring, fs, mystery`) contradicts a documented three-subsystem scope. No such
   scope statement exists in this repository or the submission; `demo.sh`,
   `demo.ps1` and `main.py`'s docstring each list all six correctly.
-- **Unresolved externally:** the reviewer could not fetch the lore.kernel.org
-  patch URL cited under Disclosure. Neither could the tooling used for the
-  earlier review passes, while the same pages load normally in a browser —
-  consistent with lore rate-limiting datacenter traffic rather than the link
-  being wrong. Worth re-checking from a clean network before the repo goes
-  public.
+- **Rejected after checking:** the reviewer reported that the lore.kernel.org
+  patch URL cited under Disclosure does not resolve, and rated it critical. It
+  resolves. Verified from a browser on a clean network: the cover letter, the
+  `/T/#u` thread view (3 replies, 4 messages), the `/all/` mirror of the same
+  message-id, and a full-text search for the author's address — the last
+  returning all eleven messages of the v1, v2 and v3 series. Two independent
+  automated reviewers failed to fetch it while browsers succeed, which points at
+  lore rate-limiting datacenter traffic, not at the link.
 
 No detector, rule, fixture, or test assertion on the default path changed.
 `scan tests/sample_kernel` still reports 12 likely races across 23 candidates,
