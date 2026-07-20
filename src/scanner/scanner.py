@@ -84,8 +84,18 @@ _MITIGATION_BY_RULE: tuple[tuple[str, Pattern], ...] = (
     ("inplace",   re.compile(r"\bskb_has_shared_frag\b")),
     ("sharediv",  re.compile(r"\bmemcpy\b")),
     ("sharedstate", re.compile(r"\bmemcpy\b")),
-    ("iouring",   re.compile(r"\b(memcpy|copy_page|copy_from_user|unpin_user_page|"
-                     r"io_buffer_unmap|kmap_local_page|sk_msg_memcopy)\b")),
+    # Two distinct io_uring detectors normalise to "iouring", and their
+    # mitigations are not interchangeable: Pattern A is about unpinning a
+    # registered buffer, A2 about copying before a network send. Merging them
+    # both missed a real `skb_copy` mitigation on A2 and exonerated A next to an
+    # unrelated `sk_msg_memcopy`. Match the specific fragments first; a rule that
+    # covers both (io_uring_race.cocci) is genuinely ambiguous and falls through
+    # to no verdict rather than a guess.
+    ("fixedbuffer", re.compile(r"\b(memcpy|copy_page|copy_from_user|"
+                               r"unpin_user_page|io_buffer_unmap|"
+                               r"kmap_local_page)\b")),
+    ("netsend",     re.compile(r"\b(memcpy|copy_from_user|skb_copy|"
+                               r"kmap_local_page|sk_msg_memcopy)\b")),
     # vmsplice before splice: "splice" is a substring of "vmsplice".
     ("vmsplice",  re.compile(r"\b(set_page_dirty|put_page|copy_page|memcpy)\b")),
     ("splice",    re.compile(r"\b(pipe_buf_get|copy_page|get_page)\b")),
@@ -687,12 +697,23 @@ class Scanner:
             # Merging on (file, line) can also collapse two genuinely different
             # rules that happen to land on one line — likelier on a real kernel
             # tree than on the single-pattern fixtures. Carry the dropped row's
-            # distinguishing details across so nothing disappears silently.
-            if drop.cve_id and not keep.cve_id:
-                keep.cve_id = drop.cve_id
+            # identity across in *structured* fields, not just prose: SARIF, CSV
+            # and code-scanning views group by rule id and CVE, and would
+            # otherwise never learn the second rule fired at all.
             if drop.rule_id and drop.rule_id != keep.rule_id:
-                note = f"also matched by {drop.rule_id}"
-                if note not in (keep.message or ""):
-                    keep.message = f"{keep.message} [{note}]" if keep.message else note
+                if drop.rule_id not in keep.also_matched_by:
+                    keep.also_matched_by.append(drop.rule_id)
+            for rid in drop.also_matched_by:
+                if rid != keep.rule_id and rid not in keep.also_matched_by:
+                    keep.also_matched_by.append(rid)
+            if drop.cve_id:
+                if not keep.cve_id:
+                    keep.cve_id = drop.cve_id
+                elif (drop.cve_id != keep.cve_id
+                      and drop.cve_id not in keep.also_cve_ids):
+                    keep.also_cve_ids.append(drop.cve_id)
+            for cid in drop.also_cve_ids:
+                if cid != keep.cve_id and cid not in keep.also_cve_ids:
+                    keep.also_cve_ids.append(cid)
             seen[key] = keep
         return list(seen.values())

@@ -32,8 +32,18 @@ def preset_source(name: str) -> str:
 
 
 def scan_source(source: str, filename: str = "upload.c",
-                patch_gap: bool = False) -> tuple[ScanReport, float]:
-    """Scan raw C source and return (report, elapsed_seconds)."""
+                patch_gap: bool = False,
+                origin: str | None = None) -> tuple[ScanReport, float]:
+    """Scan raw C source and return (report, elapsed_seconds).
+
+    ``origin`` is the path the source actually came from, when there is one —
+    the bundled fixture behind a demo preset. The report's ``target`` used to be
+    the bare filename in every case, which meant the web UI's demo-fixture
+    aliasing (keyed on ``sample_kernel`` / ``ground_truth`` appearing in the
+    target) never fired for Live Scan: picking the ``tls_sw.c`` preset displayed
+    ``ctx->iv`` and ``ctx->info`` verbatim while the Scan view aliased the very
+    same file. An uploaded file has no origin and is correctly left unaliased.
+    """
     t0 = time.perf_counter()
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / Path(filename).name
@@ -45,6 +55,7 @@ def scan_source(source: str, filename: str = "upload.c",
         results = TriagePipeline(backend="heuristic").triage(candidates)
     elapsed = time.perf_counter() - t0
     report = ScanReport(
-        target=filename, candidates_found=len(candidates), results=results,
+        target=origin or filename, candidates_found=len(candidates),
+        results=results,
     )
     return report, elapsed

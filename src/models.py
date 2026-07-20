@@ -54,6 +54,18 @@ class Candidate(BaseModel):
     cve_id: Optional[str] = Field(
         None, description="Associated CVE identifier, if this is a known-CVE pattern"
     )
+    also_matched_by: list[str] = Field(
+        default_factory=list,
+        description="Rule ids of other findings collapsed into this one by "
+        "Scanner._dedupe(). Structured rather than a note in `message`, so SARIF "
+        "/ CSV / code-scanning consumers that group by rule id can still see "
+        "that a line matched more than one rule.",
+    )
+    also_cve_ids: list[str] = Field(
+        default_factory=list,
+        description="CVE ids carried over from collapsed findings whose CVE "
+        "differs from this candidate's own.",
+    )
     # -- container escape assessment (src/scanner/container_escape.py) --------
     container_escape_potential: bool = Field(
         False,

@@ -5,6 +5,56 @@ Entries below track revisions to this repository **after** the Arsenal Europe
 string (`racemap --version`, currently 0.1.0), which has not changed: nothing
 here alters the scanner's published behaviour or figures.
 
+## v2.6 — third review round: the fixes' own bugs (2026-07-20)
+
+The reviewer re-checked v2.5 and found a bug inside each of the two code fixes
+it had asked for, plus one genuine scoping miss in the web UI. All three are
+real and fixed here. It also withdrew one of its earlier findings, having traced
+it to its own working notes rather than to anything in this repository.
+
+- **The `iouring` mitigation bucket collapsed two different detectors.**
+  v2.5 keyed the mitigation check on a letters-only substring of the rule id, and
+  both io_uring rules normalise to contain `iouring`: Pattern A
+  (`io-uring-fixed-buffer-no-copy`, about unpinning a registered buffer) and
+  Pattern A2 (`io-uring-net-send-no-copy`, about copying before a network send).
+  Their mitigations are not interchangeable, so the merged bucket both missed a
+  legitimate `skb_copy` fix on A2 and would exonerate an A candidate sitting
+  next to an unrelated `sk_msg_memcopy`. That is the same pattern-agnostic
+  failure v2.5 set out to remove, narrowed from seven rule families to two.
+  Split into `fixedbuffer` and `netsend` fragments, checked before any generic
+  match; `io_uring_race.cocci` covers both patterns and is therefore genuinely
+  ambiguous, so it now falls through to no verdict rather than a guess.
+- **The dedupe merge was prose-only.** v2.5 recorded a collapsed row by
+  appending `also matched by <rule_id>` to the message, which a human reading
+  the terminal sees and a machine does not. SARIF, CSV and code-scanning views
+  group by rule id and CVE, so a second rule firing on the same line was still
+  invisible to exactly the CI consumers the dedupe change was written for — and
+  a second, *different* CVE was dropped outright. `Candidate` now carries
+  `also_matched_by: list[str]` and `also_cve_ids: list[str]` as real fields,
+  populated on collapse and emitted in the JSON report.
+- **Live Scan never applied the demo-fixture aliasing.** `live_scan.scan_source()`
+  set the report target to the bare filename, while `_is_demo_target()` gates the
+  web UI's aliasing on `sample_kernel` / `ground_truth` appearing in that target.
+  So picking the bundled "Vulnerable driver (tls_sw.c)" preset — which reads
+  `tests/sample_kernel/net/tls/tls_sw.c`, containing both `ctx->iv` and
+  `ctx->info` — displayed those verbatim, while the Scan view aliased the very
+  same file. The README's description of the aliasing scope was accurate about
+  intent and wrong about this path. `scan_source()` now takes an `origin` and the
+  preset branch passes the fixture path through; an uploaded file has no origin
+  and is correctly left unaliased. Candidate counts are unchanged (2 for that
+  preset), so the demo video's Live Scan frame still matches.
+- **Withdrawn by the reviewer:** the earlier `DEFAULT_SUBSYSTEMS` finding. It
+  traced the "three subsystem" scope statement it was comparing against to its
+  own private task notes, not to this repository or the submission.
+- **Downgraded:** the lore.kernel.org link. Independent corroboration for the
+  environment-limitation explanation: fetching the `linux-crypto` list index
+  from that environment returns a newest entry dated 2024-05-15, i.e. a stale
+  view of the domain rather than a missing page.
+
+No detector, rule, fixture, or test assertion on the default path changed.
+`scan tests/sample_kernel` still reports 12 likely races across 23 candidates,
+`validate` still passes, and the suite is still 105 tests.
+
 ## v2.5 — second-opinion review: pattern-aware mitigation, lossless dedupe (2026-07-20)
 
 A second reviewer went over the repository independently. Three of its findings

@@ -209,16 +209,21 @@ def api_diff():
 def api_live_scan():
     global LAST_REPORT
     preset = (request.form.get("preset") or "").strip()
+    origin = None
     if "file" in request.files and request.files["file"].filename:
         f = request.files["file"]
         source = f.read().decode("utf-8", errors="ignore")
         name = f.filename
     elif preset and preset in live_scan.PRESETS:
         source = live_scan.preset_source(preset)
-        name = Path(live_scan.PRESETS[preset]).name
+        # Keep the fixture path, not just the basename: the demo-fixture
+        # aliasing below is keyed on it, and a preset *is* a bundled fixture.
+        origin = live_scan.PRESETS[preset]
+        name = Path(origin).name
     else:
         return jsonify({"error": "Choose a preset or upload a .c file."}), 400
-    report, secs = live_scan.scan_source(source, name, patch_gap=True)
+    report, secs = live_scan.scan_source(source, name, patch_gap=True,
+                                         origin=origin)
     LAST_REPORT = report
     out = _report_json(report)
     out["filename"] = name
