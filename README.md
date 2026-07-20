@@ -11,9 +11,10 @@ positives by judging whether each candidate is already adequately protected.
 
 ![Scan results](docs/screenshots/scan.png)
 
-*Recorded on v1.0, before the disclosure went public — this screenshot predates
-the demo-fixture aliasing described under [Web UI](#web-ui) and so shows the
-real identifiers.*
+*Captured on v1.0. The UI has picked up small changes since — an API-key hint in
+the sidebar, for one — and this predates the demo-fixture aliasing described
+under [Web UI](#web-ui), which is why it shows the real identifiers, exactly as
+a scan of an actual kernel tree still does.*
 
 ## How it works
 
