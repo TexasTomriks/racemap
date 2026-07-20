@@ -51,6 +51,22 @@ it to its own working notes rather than to anything in this repository.
   from that environment returns a newest entry dated 2024-05-15, i.e. a stale
   view of the domain rather than a missing page.
 
+Closing the two open notes from the review of these fixes:
+
+- The reviewer could verify the rule-id routing for the built-in detectors and
+  the Coccinelle file stems, but had to *infer* it for Semgrep. Measured
+  instead: all nine `check_id`s in `rules/semgrep/*.yaml` route correctly, and
+  the two that matter here separate as intended —
+  `racemap-io-uring-net-send-no-copy` gets the `skb_copy` set,
+  `racemap-io-uring-fixed-buffer-no-copy` gets the unpin set.
+- `also_matched_by` / `also_cve_ids` are now also emitted in the SARIF result
+  property bag, not only in the JSON report. SARIF's `ruleId` must resolve to a
+  single entry in `tool.driver.rules`, so the primary id stays as-is and the
+  merged ids live alongside it — otherwise a code-scanning view grouping by rule
+  id never learns the row was a merge, which is the audience the dedupe change
+  was written for. CSV is left alone: it does not carry `rule_id` either, so
+  this is not a regression there.
+
 No detector, rule, fixture, or test assertion on the default path changed.
 `scan tests/sample_kernel` still reports 12 likely races across 23 candidates,
 `validate` still passes, and the suite is still 105 tests.

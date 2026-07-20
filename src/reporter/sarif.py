@@ -69,6 +69,13 @@ def _result(r: TriageResult) -> dict:
             "risk_score": r.score,
             "shared_field": c.shared_field,
             "cve_id": c.cve_id,
+            # `ruleId` must resolve to exactly one entry in tool.driver.rules,
+            # so a line matched by more than one rule is reported under the
+            # primary id with the others recorded here. Without this a
+            # code-scanning view grouping by rule id never learns the row was a
+            # merge — which is the audience Scanner._dedupe() exists for.
+            "also_matched_by": c.also_matched_by,
+            "also_cve_ids": c.also_cve_ids,
             "container_escape": c.container_escape_potential,
             "container_escape_reason": c.container_escape_reason,
             "taint_propagated": c.taint_propagated,
