@@ -63,21 +63,52 @@ _INPLACE_RE = re.compile(
 # paired #else (fixed) branch of the same fixture.
 _CPP_BRANCH_RE = re.compile(r"^\s*#\s*(if|ifdef|ifndef|elif|else|endif)\b")
 
-# Union of the per-detector mitigation tokens. Coccinelle and Semgrep report a
-# match without saying whether the site is already guarded, so engine-reported
-# candidates are annotated with this after the fact; without it every external
-# finding comes back "likely race" and the exonerated variants disappear.
-# NB: skb_cow_data() is deliberately NOT in this list. It copies the data but
-# does not establish that the fragments are unshared for the duration of the
-# operation, which is the whole point of the Dirty Frag / CVE-2026-43284
-# pattern — treating it as a mitigation exonerates the very site the
-# ground-truth fixture exists to catch. Only skb_has_shared_frag() qualifies.
-_GENERIC_MITIGATION_RE = re.compile(
-    r"\b(memcpy|copy_page|copy_from_user|unpin_user_page|io_buffer_unmap|"
-    r"kmap_local_page|sk_msg_memcopy|pipe_buf_get|get_page|set_page_dirty|"
-    r"put_page|skb_unshare|skb_copy|pskb_copy|pskb_expand_head|"
-    r"skb_has_shared_frag|vma_lookup|vma_is_stable)\b"
+# Mitigation check per rule family, for candidates an external engine reported
+# without a verdict. Coccinelle and Semgrep report a match without saying whether
+# the site is already guarded; without this every external finding would come
+# back "likely race" and the exonerated variants would disappear. Each entry mirrors the matching built-in detector's own
+# `mitigation` regex, so the question asked is always "is *this* pattern's
+# mitigation present?".
+#
+# A flat union of every token was tried first and was wrong twice over. It
+# exonerated `net/tipc/crypto.c` because `skb_cow_data()` was in the union,
+# although copying the data does not make the fragments unshared — precisely the
+# site the Dirty Frag fixture exists to catch. More generally it would exonerate
+# any candidate that merely sits near *some* known mitigation call: a shared-IV
+# hit next to an unrelated put_page(), say. Rule families not listed here get no
+# verdict at all (None) rather than a guess, and the triage layer falls back to
+# its own lock/annotation/barrier signals.
+_MITIGATION_BY_RULE: tuple[tuple[str, Pattern], ...] = (
+    # Order matters: check the narrower in-place rule before the shared-IV one,
+    # since a Semgrep in-place hit can also mention ctx-> fields.
+    ("inplace",   re.compile(r"\bskb_has_shared_frag\b")),
+    ("sharediv",  re.compile(r"\bmemcpy\b")),
+    ("sharedstate", re.compile(r"\bmemcpy\b")),
+    ("iouring",   re.compile(r"\b(memcpy|copy_page|copy_from_user|unpin_user_page|"
+                     r"io_buffer_unmap|kmap_local_page|sk_msg_memcopy)\b")),
+    # vmsplice before splice: "splice" is a substring of "vmsplice".
+    ("vmsplice",  re.compile(r"\b(set_page_dirty|put_page|copy_page|memcpy)\b")),
+    ("splice",    re.compile(r"\b(pipe_buf_get|copy_page|get_page)\b")),
+    ("zerocopy",  re.compile(r"\b(skb_unshare|skb_copy|pskb_copy|pskb_expand_head)\b")),
+    ("dirtypipe", re.compile(r"(buf->flags\s*=\s*0|\bPageAnon\b|\.flags\s*=\s*0)")),
+    ("canmerge",  re.compile(r"(buf->flags\s*=\s*0|\bPageAnon\b|\.flags\s*=\s*0)")),
+    ("mmap",      re.compile(r"\b(vma_lookup|vma_is_stable|VM_FAULT_RETRY|"
+                     r"FAULT_FLAG_ALLOW_RETRY)\b")),
 )
+
+
+def _mitigation_re_for_rule(rule_id: Optional[str]) -> Optional[Pattern]:
+    """Pick the mitigation check matching a rule id, or None if unrecognised.
+
+    Ids are normalised to letters only so both engines' conventions collapse to
+    the same key: ``coccinelle.shared_iv_no_snapshot`` and
+    ``src.rules.semgrep.racemap-shared-iv-no-snapshot`` both contain ``sharediv``.
+    """
+    key = re.sub(r"[^a-z]", "", (rule_id or "").lower())
+    for fragment, pattern in _MITIGATION_BY_RULE:
+        if fragment in key:
+            return pattern
+    return None
 
 
 def _clip_window(
@@ -323,9 +354,11 @@ class Scanner:
             # triage layer can still exonerate an already-guarded site. Built-in
             # candidates always arrive with a bool here and are left alone.
             if c.mitigation_present is None and lines:
-                c.mitigation_present = bool(_GENERIC_MITIGATION_RE.search(
-                    _clip_window(lines, idx, 10, 10, strip_comments=True)
-                ))
+                mit_re = _mitigation_re_for_rule(c.rule_id)
+                if mit_re is not None:
+                    c.mitigation_present = bool(mit_re.search(
+                        _clip_window(lines, idx, 10, 10, strip_comments=True)
+                    ))
 
             # Bug 2: container-escape now uses primitive + file path.
             container_escape.annotate(c)
@@ -647,6 +680,19 @@ class Scanner:
         for c in candidates:
             key = (c.file, c.line)
             cur = seen.get(key)
-            if cur is None or _rank(c) > _rank(cur):
+            if cur is None:
                 seen[key] = c
+                continue
+            keep, drop = (c, cur) if _rank(c) > _rank(cur) else (cur, c)
+            # Merging on (file, line) can also collapse two genuinely different
+            # rules that happen to land on one line — likelier on a real kernel
+            # tree than on the single-pattern fixtures. Carry the dropped row's
+            # distinguishing details across so nothing disappears silently.
+            if drop.cve_id and not keep.cve_id:
+                keep.cve_id = drop.cve_id
+            if drop.rule_id and drop.rule_id != keep.rule_id:
+                note = f"also matched by {drop.rule_id}"
+                if note not in (keep.message or ""):
+                    keep.message = f"{keep.message} [{note}]" if keep.message else note
+            seen[key] = keep
         return list(seen.values())

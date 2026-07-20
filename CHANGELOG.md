@@ -5,6 +5,57 @@ Entries below track revisions to this repository **after** the Arsenal Europe
 string (`racemap --version`, currently 0.1.0), which has not changed: nothing
 here alters the scanner's published behaviour or figures.
 
+## v2.5 — second-opinion review: pattern-aware mitigation, lossless dedupe (2026-07-20)
+
+A second reviewer went over the repository independently. Three of its findings
+held up and are fixed here; two are recorded below as rejected or reworded.
+
+- **The v2.3 mitigation annotation was pattern-agnostic.** `_GENERIC_MITIGATION_RE`
+  was a flat union of every detector's tokens, applied to any engine-reported
+  candidate. It would exonerate a shared-IV hit that merely sat near an
+  unrelated `put_page()`. That is the same failure that made v2.3's first draft
+  exonerate `net/tipc/crypto.c`, and removing one token (`skb_cow_data`) treated
+  the symptom. Replaced with `_MITIGATION_BY_RULE`: the check is now chosen from
+  the candidate's own `rule_id`, mirroring the matching built-in detector's
+  `mitigation` regex, and a rule family that isn't recognised gets **no verdict
+  at all** rather than a guess — the triage layer then falls back to its own
+  lock/annotation/barrier signals. (Writing the lookup surfaced a third bug of
+  the same shape: `"splice"` is a substring of `"vmsplice"`, so the vmsplice
+  rule was picking up the splice mitigation set. Ordered accordingly, as
+  `_PRIMITIVE_KEYWORDS` already does for the same reason.)
+- **`_dedupe()` could silently drop a distinct finding.** Keying on
+  `(file, line)` merges the duplicate engine hits it was meant to merge, but on
+  a real kernel tree two different rules can legitimately land on one line, and
+  the lower-ranked row simply vanished. It now carries the dropped row's
+  `cve_id` across and appends an `also matched by <rule_id>` note to the
+  message, so a collapse is visible instead of lossy.
+- **README conflated two different measurements.** "12 likely races across 23
+  candidates at a 0% measured false-positive rate against the ground truth,
+  reproducible offline via `scan tests/sample_kernel`" read as one claim from
+  one command. It is two: the ground-truth suite lives in `tests/ground_truth/`
+  and runs under `pytest tests/test_ground_truth.py` (13 cases), while the
+  sample-tree scan is a separate fixture set whose 0% is measured against those
+  fixtures' own mitigation annotations. The Validation section now separates
+  them and names the command for each.
+- **"Per-candidate confidence intervals" overstated what `_confidence_band()`
+  does** — it returns a fixed width per verdict path (±0.05 heuristic, ±0.10
+  narrowing to ±0.03 for LLM backends by reasoning-step count), not a calibrated
+  interval. Reworded to "confidence bands" with the mechanism spelled out.
+- **Rejected:** a claim that `DEFAULT_SUBSYSTEMS` (`net, crypto, drivers/char,
+  io_uring, fs, mystery`) contradicts a documented three-subsystem scope. No such
+  scope statement exists in this repository or the submission; `demo.sh`,
+  `demo.ps1` and `main.py`'s docstring each list all six correctly.
+- **Unresolved externally:** the reviewer could not fetch the lore.kernel.org
+  patch URL cited under Disclosure. Neither could the tooling used for the
+  earlier review passes, while the same pages load normally in a browser —
+  consistent with lore rate-limiting datacenter traffic rather than the link
+  being wrong. Worth re-checking from a clean network before the repo goes
+  public.
+
+No detector, rule, fixture, or test assertion on the default path changed.
+`scan tests/sample_kernel` still reports 12 likely races across 23 candidates,
+`validate` still passes, and the suite is still 105 tests.
+
 ## v2.4 — make the documented `.env` support real (2026-07-20)
 
 Both the README ("or put it in a `.env` file in the project root") and the web

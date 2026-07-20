@@ -52,7 +52,9 @@ detection. It classifies each candidate as *likely race*, *likely safe*, or
   persistent)
 - Patch-gap analysis — flag candidates whose known upstream fix is absent
 - Git-log cross-reference for recently-modified hot spots
-- Per-candidate confidence intervals
+- Per-candidate confidence bands (a fixed width per verdict path, narrowing as
+  an LLM backend emits more reasoning steps — not a calibrated statistical
+  interval)
 - SQLite response cache for fast, repeatable runs
 - Interactive call-graph visualization in the web UI
 - Live "bring your own driver" scan — paste or upload a single `.c` file
@@ -155,16 +157,29 @@ is also included: `streamlit run src/ui/app.py`.
 
 ## Validation
 
-racemap ships a ground-truth set drawn from real kernel crypto code and three
-public CVEs — Dirty Pipe (CVE-2022-0847), a `copy_from_user`-under-
-`mmap_read_lock` VMA-stability bug (CVE-2022-2590), and the ESP
-in-place-decryption bug Dirty Frag (CVE-2026-43284) — each fixture carrying a
-vulnerable and a fixed variant; the scanner must flag the former and exonerate
-the latter.
+Two separate things are measured here; the numbers below come from different
+commands and it is worth keeping them apart.
 
-On the bundled sample tree, racemap surfaces 12 likely races across 23
-candidates at a 0% measured false-positive rate against the ground truth,
-reproducible offline:
+**The ground-truth suite** lives in `tests/ground_truth/` and is declared in
+`expected.json`: the reported algif_skcipher race, four zero-copy attack-surface
+patterns (A–D), and three public CVEs — Dirty Pipe (CVE-2022-0847), a
+`copy_from_user`-under-`mmap_read_lock` VMA-stability bug (CVE-2022-2590), and
+the ESP in-place-decryption bug Dirty Frag (CVE-2026-43284). Each carries a
+vulnerable and a fixed variant, and the scanner must flag the former and
+exonerate the latter. Run it with:
+
+```bash
+pytest tests/test_ground_truth.py
+```
+
+`python main.py validate` is the CLI shortcut for the algif pair only — it is
+the fixture tied to the disclosure below, not the whole suite.
+
+**The sample-tree scan** is a demo over `tests/sample_kernel/`, a different set
+of fixtures. It surfaces 12 likely races across 23 candidates, and 0% of the
+candidates carrying a mitigation are misclassified as races (11 mitigated sites,
+0 wrong) — that is the false-positive rate quoted elsewhere, measured against
+the fixtures' own mitigation annotations rather than against `expected.json`:
 
 ```bash
 python main.py clear-cache && python main.py scan tests/sample_kernel --llm heuristic
