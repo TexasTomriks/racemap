@@ -33,10 +33,14 @@ import click
 sys.path.insert(0, str(Path(__file__).parent))
 
 from src import __version__
+from src.env import load_dotenv
 from src.models import ScanReport, Verdict
 from src.reporter import Reporter
 from src.scanner import Scanner
 from src.triage import LLM_CHOICES, TriagePipeline
+
+# Honour a .env in the project root, as the README and web UI both promise.
+load_dotenv()
 
 ROOT = Path(__file__).parent
 RULES_DIR = ROOT / "rules"

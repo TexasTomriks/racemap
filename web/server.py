@@ -20,6 +20,7 @@ sys.path.insert(0, str(ROOT))
 from flask import Flask, jsonify, request, send_from_directory, Response, render_template
 
 from src import __version__
+from src.env import load_dotenv
 from src.models import ScanReport, Verdict
 from src.scanner import Scanner, diff_mode, patch_gap as _pg, db_updater
 from src.triage import TriagePipeline, LLM_CHOICES
@@ -27,6 +28,9 @@ from src.reporter import Reporter
 from src.reporter.sarif import to_sarif
 from src.reporter.semgrep_exporter import export_yaml, filename_for
 from src.ui import live_scan
+
+# Honour a .env in the project root, as the README and the sidebar hint promise.
+load_dotenv()
 
 RULES_DIR = ROOT / "rules"
 KERNEL_VERSIONS = ["4.9", "5.4", "5.10", "5.15", "5.16", "6.0", "6.1",

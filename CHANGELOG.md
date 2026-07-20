@@ -49,6 +49,26 @@ No detector logic, rule, or test assertion changed in this pass — only
 disclosure text, one terminal string, one CLI default, one missing
 dependency, and documentation.
 
+## v2.4 — make the documented `.env` support real (2026-07-20)
+
+Both the README ("or put it in a `.env` file in the project root") and the web
+UI sidebar ("Keys read from environment / .env") told users an API key could
+live in a `.env` file. Nothing ever read one: every backend goes straight to
+`os.environ`, and `python-dotenv` is not a dependency. A key placed in `.env`
+was silently ignored and the run quietly fell back to the offline heuristic —
+which, because the fallback is deliberately silent, looked like the tool working
+rather than the key being dropped.
+
+- New `src/env.py`: a ~20-line loader, no new dependency. Called once at startup
+  from `main.py` and `web/server.py`. Comments and malformed lines are skipped,
+  surrounding quotes and an `export ` prefix are stripped, and a variable that
+  is already exported always beats the file. A missing `.env` returns 0 and is
+  the normal case.
+- No behaviour change for any published figure: there is no `.env` in the
+  repository (it is gitignored), so `scan`, `validate` and the test suite are
+  unaffected — still 12 likely races across 23 candidates, ground truth passing,
+  105 tests.
+
 ## v2.3 — make the Coccinelle/Semgrep path actually work (2026-07-20)
 
 Until this release the README described stage 1 as "Coccinelle and Semgrep rules
