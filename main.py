@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """racemap — Linux kernel shared page-cache race condition scanner with LLM triage.
 
-CLI entry point. Pipeline: static scan (Coccinelle + Semgrep) -> LLM triage
+CLI entry point. Pipeline: static scan (built-in pattern matcher by default, or
+the shipped Coccinelle/Semgrep rules with --external-tools) -> LLM triage
 (Ollama / Anthropic / OpenAI / Gemini, with an offline heuristic fallback) ->
 ranked JSON + Rich report.
 

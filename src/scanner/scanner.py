@@ -3,14 +3,17 @@ their output into :class:`Candidate` objects.
 
 Design notes
 ------------
-* Static analysis runs on a separate Ubuntu machine where ``spatch`` (Coccinelle)
-  and ``semgrep`` are installed. This module shells out to them and parses their
-  output; if a binary is missing it degrades gracefully and records a warning
-  instead of crashing, so the CLI still works on the Windows dev box for demos.
-* A built-in regex fallback (`_regex_scan`) lets the tool surface every pattern
-  even when neither engine is installed. The fallback is driven by a table of
-  :class:`_Detector` specs (one per zero-copy attack surface) plus two bespoke
-  patterns kept for backward compatibility.
+* The default engine is the built-in matcher (`_regex_scan`), driven by a table
+  of :class:`_Detector` specs (one per zero-copy attack surface) plus two
+  bespoke patterns kept for backward compatibility. It needs no external
+  toolchain, so a scan is hermetic and reproduces identically everywhere, and it
+  reports both the vulnerable and the guarded shape of each pattern so the
+  triage layer has something to exonerate.
+* ``external_tools=True`` (``--external-tools``) shells out to ``spatch``
+  (Coccinelle) and ``semgrep`` against ``rules/`` instead, parsing their output
+  into the same :class:`Candidate` shape. If a binary is missing it degrades
+  gracefully with a warning and the built-in matcher takes over. That path finds
+  fewer sites, because the rule files encode only the vulnerable shapes.
 """
 
 from __future__ import annotations
