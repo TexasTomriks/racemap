@@ -1,53 +1,9 @@
 # Changelog
 
-## v1 — Arsenal Europe 2026 submission (as demoed in the video)
-
-State as submitted for review. The algif_skcipher disclosure was still generic
-in the README ("a Linux kernel crypto subsystem"), since the patch was not yet
-public at submission time. The bundled web-UI demo (`web/server.py`) displays
-the `algif_skcipher` / `ctx->iv` fixture under generic aliases
-(`crypto_subsystem` / `ctx->shared_buf`) for the on-screen demo — this
-redaction is unchanged in v2 and still matches the submitted video exactly.
-
-## v2 — post-acceptance reconciliation (2026-07-19)
-
-The patch series was accepted by the stable maintainers on 2026-07-17 and the
-technical analysis is now public. This pass reconciles the repo with that:
-
-- **Disclosure**: README now names `crypto/algif_skcipher.c` and `ctx->iv`
-  explicitly, with the report/acceptance dates, the seven queued stable
-  trees, and the public lore.kernel.org patch link. `tests/ground_truth/expected.json`
-  no longer says "under embargo — CVE pending".
-- **Validation**: added a README section documenting the ground-truth set
-  (Dirty Pipe CVE-2022-0847, CVE-2022-2590 — both with vulnerable/fixed
-  fixture pairs and used for the `validate` pass/fail check) versus the
-  Dirty Frag / CVE-2026-43284 rule, which is demonstrated live against a
-  real `net/tipc/crypto.c` fixture (flagged correctly in every scan) but has
-  no fixed-variant counterpart, so it "informs" the rule set rather than
-  being part of the formal recall/false-positive measurement.
-- **Terminal output bug**: `python main.py validate` / `scan --kernel-version`
-  was printing `"(no fix yet)"` next to the algif finding — misleading now
-  that a fix is accepted and queued. Changed to `"(no fixed_in on record —
-  check upstream)"`.
-- **`--llm` default**: `scan` now defaults to `heuristic` (was `ollama`),
-  matching the README's "runs fully offline by default" claim.
-- **Missing dependency**: `requirements.txt` never declared `flask`, so the
-  web UI shown in the demo video could not run from a clean
-  `pip install -r requirements.txt`. Added.
-- **Web UI docs**: README now documents how to launch the Flask web UI
-  (`python web/server.py`, port 5005) and the unused alternate Streamlit
-  dashboard (`src/ui/app.py`), plus a note on the demo-fixture redaction
-  above so it isn't mistaken for an inconsistency.
-- **Docker**: added a `web` service to `docker-compose.yml` and a
-  `docker run --entrypoint python racemap web/server.py` example, since
-  neither existed before.
-- Misc: `demo.sh` / `demo.ps1` presenter notes updated to the verified
-  "12 likely races / 23 candidates" figure; stale comments in
-  `src/scanner/version_tracker.py` and its test corrected.
-
-No detector logic, rule, or test assertion changed in this pass — only
-disclosure text, one terminal string, one CLI default, one missing
-dependency, and documentation.
+Entries below track revisions to this repository **after** the Arsenal Europe
+2026 submission, newest first. They are independent of the tool's own version
+string (`racemap --version`, currently 0.1.0), which has not changed: nothing
+here alters the scanner's published behaviour or figures.
 
 ## v2.4 — make the documented `.env` support real (2026-07-20)
 
@@ -90,12 +46,6 @@ testing inside the project's own Docker image — which installs both `spatch` a
   - `semgrep 1.170` loads the ten rules fine but scans **0 targets** against the
     bundled fixtures, since its default ignore patterns exclude `tests/`.
 
-What changed here is documentation, not behaviour:
-
-- **README** stage 1 now states plainly that a built-in matcher produces every
-  published figure, and that the files under `rules/` are reference
-  specifications for the same patterns whose `spatch` / `semgrep` path is
-  currently not working, with both root causes named.
 Five bugs stood between the shipped rules and a working run. All are fixed, and
 `--external-tools` now exists as a real, verified option:
 
@@ -225,3 +175,52 @@ An independent LLM review of v2 caught two real remaining issues:
 that was a CDN caching artifact on the reviewer's side, not an actual sync
 problem; re-fetching with a cache-busting query param confirmed GitFront was
 already serving v2 correctly.)
+## v2 — post-acceptance reconciliation (2026-07-19)
+
+The patch series was accepted by the stable maintainers on 2026-07-17 and the
+technical analysis is now public. This pass reconciles the repo with that:
+
+- **Disclosure**: README now names `crypto/algif_skcipher.c` and `ctx->iv`
+  explicitly, with the report/acceptance dates, the seven queued stable
+  trees, and the public lore.kernel.org patch link. `tests/ground_truth/expected.json`
+  no longer says "under embargo — CVE pending".
+- **Validation**: added a README section documenting the ground-truth set
+  (Dirty Pipe CVE-2022-0847, CVE-2022-2590 — both with vulnerable/fixed
+  fixture pairs and used for the `validate` pass/fail check) versus the
+  Dirty Frag / CVE-2026-43284 rule, which is demonstrated live against a
+  real `net/tipc/crypto.c` fixture (flagged correctly in every scan) but has
+  no fixed-variant counterpart, so it "informs" the rule set rather than
+  being part of the formal recall/false-positive measurement.
+- **Terminal output bug**: `python main.py validate` / `scan --kernel-version`
+  was printing `"(no fix yet)"` next to the algif finding — misleading now
+  that a fix is accepted and queued. Changed to `"(no fixed_in on record —
+  check upstream)"`.
+- **`--llm` default**: `scan` now defaults to `heuristic` (was `ollama`),
+  matching the README's "runs fully offline by default" claim.
+- **Missing dependency**: `requirements.txt` never declared `flask`, so the
+  web UI shown in the demo video could not run from a clean
+  `pip install -r requirements.txt`. Added.
+- **Web UI docs**: README now documents how to launch the Flask web UI
+  (`python web/server.py`, port 5005) and the unused alternate Streamlit
+  dashboard (`src/ui/app.py`), plus a note on the demo-fixture redaction
+  above so it isn't mistaken for an inconsistency.
+- **Docker**: added a `web` service to `docker-compose.yml` and a
+  `docker run --entrypoint python racemap web/server.py` example, since
+  neither existed before.
+- Misc: `demo.sh` / `demo.ps1` presenter notes updated to the verified
+  "12 likely races / 23 candidates" figure; stale comments in
+  `src/scanner/version_tracker.py` and its test corrected.
+
+No detector logic, rule, or test assertion changed in this pass — only
+disclosure text, one terminal string, one CLI default, one missing
+dependency, and documentation.
+
+## v1 — Arsenal Europe 2026 submission (as demoed in the video)
+
+State as submitted for review. The algif_skcipher disclosure was still generic
+in the README ("a Linux kernel crypto subsystem"), since the patch was not yet
+public at submission time. The bundled web-UI demo (`web/server.py`) displays
+the `algif_skcipher` / `ctx->iv` fixture under generic aliases
+(`crypto_subsystem` / `ctx->shared_buf`) for the on-screen demo — this
+redaction is unchanged in v2 and still matches the submitted video exactly.
+
