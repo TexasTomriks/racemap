@@ -54,9 +54,11 @@ def _run_pipeline(
     output: str = "terminal",
     patch_gap: bool = False,
     demo_mode: bool = False,
+    external_tools: bool = False,
 ) -> ScanReport:
     reporter = Reporter()
-    scanner = Scanner(rules_dir=RULES_DIR, subsystems=subsystems, git_cross_ref=True)
+    scanner = Scanner(rules_dir=RULES_DIR, subsystems=subsystems, git_cross_ref=True,
+                      external_tools=external_tools)
     triage = TriagePipeline(backend=llm, ollama_model=ollama_model,
                             demo_mode=demo_mode, cache_enabled=True)
 
@@ -141,11 +143,18 @@ def cli(ctx, update_db) -> None:
               help="Flag candidates whose known upstream patch signature is absent (+0.15 risk).")
 @click.option("--demo-mode", is_flag=True,
               help="Serve triage verdicts from the SQLite cache; never call an LLM API.")
-def scan(target, subsystems, llm, ollama_model, kernel_version, json_out, quiet, verbose, output, patch_gap, demo_mode):
+@click.option("--external-tools", is_flag=True,
+              help="Run the shipped Coccinelle (spatch) and Semgrep rules from "
+                   "rules/ instead of the built-in matcher. Off by default so a "
+                   "scan is hermetic and reproduces identically everywhere; if "
+                   "neither binary is present racemap warns and falls back to "
+                   "the built-in matcher.")
+def scan(target, subsystems, llm, ollama_model, kernel_version, json_out, quiet, verbose, output, patch_gap, demo_mode, external_tools):
     """Scan a kernel TREE or single FILE for shared-state race candidates."""
     subs = list(subsystems) or DEFAULT_SUBSYSTEMS
     _run_pipeline(target, subs, llm, ollama_model, kernel_version, json_out, quiet,
-                  verbose, output=output, patch_gap=patch_gap, demo_mode=demo_mode)
+                  verbose, output=output, patch_gap=patch_gap, demo_mode=demo_mode,
+                  external_tools=external_tools)
 
 
 @cli.command()

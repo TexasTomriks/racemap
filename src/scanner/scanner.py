@@ -60,6 +60,22 @@ _INPLACE_RE = re.compile(
 # paired #else (fixed) branch of the same fixture.
 _CPP_BRANCH_RE = re.compile(r"^\s*#\s*(if|ifdef|ifndef|elif|else|endif)\b")
 
+# Union of the per-detector mitigation tokens. Coccinelle and Semgrep report a
+# match without saying whether the site is already guarded, so engine-reported
+# candidates are annotated with this after the fact; without it every external
+# finding comes back "likely race" and the exonerated variants disappear.
+# NB: skb_cow_data() is deliberately NOT in this list. It copies the data but
+# does not establish that the fragments are unshared for the duration of the
+# operation, which is the whole point of the Dirty Frag / CVE-2026-43284
+# pattern — treating it as a mitigation exonerates the very site the
+# ground-truth fixture exists to catch. Only skb_has_shared_frag() qualifies.
+_GENERIC_MITIGATION_RE = re.compile(
+    r"\b(memcpy|copy_page|copy_from_user|unpin_user_page|io_buffer_unmap|"
+    r"kmap_local_page|sk_msg_memcopy|pipe_buf_get|get_page|set_page_dirty|"
+    r"put_page|skb_unshare|skb_copy|pskb_copy|pskb_expand_head|"
+    r"skb_has_shared_frag|vma_lookup|vma_is_stable)\b"
+)
+
 
 def _clip_window(
     lines: list[str], center0: int, before: int, after: int,
@@ -299,6 +315,15 @@ class Scanner:
             c.zero_copy_primitive = classify_primitive(window)
             c.pattern_name = pattern_name_for(c.zero_copy_primitive)
 
+            # Coccinelle / Semgrep report a match without a mitigation verdict.
+            # Annotate those the same way the built-in detectors do, so the
+            # triage layer can still exonerate an already-guarded site. Built-in
+            # candidates always arrive with a bool here and are left alone.
+            if c.mitigation_present is None and lines:
+                c.mitigation_present = bool(_GENERIC_MITIGATION_RE.search(
+                    _clip_window(lines, idx, 10, 10, strip_comments=True)
+                ))
+
             # Bug 2: container-escape now uses primitive + file path.
             container_escape.annotate(c)
             version_tracker.annotate(c)
@@ -331,14 +356,27 @@ class Scanner:
         for cocci in sorted((self.rules_dir / "coccinelle").glob("*.cocci")):
             try:
                 proc = subprocess.run(
+                    # -D report activates the `virtual report` rule the .cocci
+                    # files declare; without it their @script:python blocks are
+                    # inert and spatch prints nothing at all.
                     ["spatch", "--sp-file", str(cocci), "--dir", str(target),
-                     "--no-includes", "--very-quiet"],
+                     "--no-includes", "--very-quiet", "-D", "report"],
                     capture_output=True, text=True, timeout=1800,
                 )
             except (subprocess.SubprocessError, OSError) as exc:
                 self.warnings.append(f"spatch failed on {cocci.name}: {exc}")
                 continue
-            results.extend(self._parse_cocci_output(proc.stdout, cocci.stem))
+            # A .cocci that fails to parse exits non-zero and prints nothing on
+            # stdout. Without this check that is indistinguishable from "rule
+            # matched nothing", which is how a broken rule set stayed invisible.
+            if proc.returncode != 0:
+                first = (proc.stderr or "").strip().splitlines()
+                self.warnings.append(
+                    f"spatch rejected {cocci.name} (exit {proc.returncode}): "
+                    f"{first[0] if first else 'no stderr'}"
+                )
+                continue
+            results.extend(self._parse_cocci_output(proc.stdout, cocci.stem, target))
         return results
 
     def _run_semgrep(self, target: Path) -> list[Candidate]:
@@ -359,11 +397,15 @@ class Scanner:
         for hit in data.get("results", []):
             start = hit.get("start", {})
             path = hit.get("path", "")
+            # Normalise to the same target-relative form the Coccinelle and
+            # built-in paths use, so _dedupe() can merge a site both engines
+            # found and _enrich_all() can locate the source file.
+            rel = self._rel(Path(path), target) if path else path
             results.append(
                 Candidate(
                     rule_id=hit.get("check_id", "semgrep.unknown"),
                     engine=Engine.SEMGREP,
-                    file=path,
+                    file=rel,
                     line=start.get("line", 1),
                     subsystem=self._subsystem_for(path),
                     snippet=hit.get("extra", {}).get("lines", ""),
@@ -542,21 +584,37 @@ class Scanner:
             return str(path).replace("\\", "/")
 
     @staticmethod
-    def _parse_cocci_output(stdout: str, rule_id: str) -> list[Candidate]:
-        """Parse our cocci rules' ``// RACEMAP:file:line:field`` print lines."""
+    def _parse_cocci_output(stdout: str, rule_id: str,
+                            target: Optional[Path] = None) -> list[Candidate]:
+        """Parse our cocci rules' ``RACEMAP:file:line:field`` print lines.
+
+        spatch emits ``<file>:<line>:<cols>: RACEMAP:<file>:<line>:<field>``, so
+        the payload after the marker has exactly three colon-separated parts.
+        """
         results: list[Candidate] = []
+        base = None
+        if target is not None:
+            base = target if target.is_dir() else target.parent
         for line in stdout.splitlines():
             if "RACEMAP:" not in line:
                 continue
             try:
-                _, file, lineno, field_name = line.split("RACEMAP:")[1].split(":", 3)
+                file, lineno, field_name = (
+                    line.split("RACEMAP:", 1)[1].split(":", 2)
+                )
             except ValueError:
                 continue
+            file = file.strip()
+            if base is not None:
+                try:
+                    file = str(Path(file).relative_to(base)).replace("\\", "/")
+                except ValueError:
+                    pass
             results.append(
                 Candidate(
                     rule_id=f"coccinelle.{rule_id}",
                     engine=Engine.COCCINELLE,
-                    file=file.strip(),
+                    file=file,
                     line=int(lineno.strip() or 1),
                     snippet="",
                     message="Coccinelle matched a zero-copy anti-pattern.",
@@ -567,9 +625,25 @@ class Scanner:
 
     @staticmethod
     def _dedupe(candidates: list[Candidate]) -> list[Candidate]:
+        """Collapse candidates describing the same source line, richest wins.
+
+        Engines overlap: Semgrep can match several of its rules on one line, and
+        Coccinelle reports sites the built-in matcher also finds. Keying on
+        (file, line, shared_field) let those through as separate rows, so an
+        --external-tools run listed the same site two or three times.
+        """
+        def _rank(c: Candidate) -> tuple:
+            return (
+                c.mitigation_present is not None,
+                bool(c.shared_field),
+                bool(c.snippet),
+                bool(c.cve_id),
+            )
+
         seen: dict[tuple, Candidate] = {}
         for c in candidates:
-            key = (c.file, c.line, c.shared_field)
-            if key not in seen or (not seen[key].snippet and c.snippet):
+            key = (c.file, c.line)
+            cur = seen.get(key)
+            if cur is None or _rank(c) > _rank(cur):
                 seen[key] = c
         return list(seen.values())

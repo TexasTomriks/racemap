@@ -49,6 +49,96 @@ No detector logic, rule, or test assertion changed in this pass — only
 disclosure text, one terminal string, one CLI default, one missing
 dependency, and documentation.
 
+## v2.3 — make the Coccinelle/Semgrep path actually work (2026-07-20)
+
+Until this release the README described stage 1 as "Coccinelle and Semgrep rules
+(with a regex fallback when those tools are unavailable)". That was wrong, and
+testing inside the project's own Docker image — which installs both `spatch` and
+`semgrep` — showed exactly how wrong:
+
+- `Scanner.__init__` takes `external_tools`, defaulting to `False`, and **no
+  caller anywhere in the tree passes `True`** — not `main.py`, the web UI,
+  `diff_mode`, `live_scan`, the Streamlit dashboard, or `scripts/benchmark.py`.
+  There was no CLI flag either, so the external engines were unreachable, and
+  the built-in matcher was never a fallback: it has always been the only engine.
+- Forcing `external_tools=True` with both binaries present produces output
+  byte-identical to the default run, because both engines return nothing and
+  `if not candidates` silently falls through to the built-in matcher:
+  - `spatch 1.3` **cannot parse the shipped `.cocci` files**
+    (`shared_iv_no_snapshot.cocci:38`, `memcpy(iv, ctx->iv, ...)` — SmPL syntax
+    error), so the Coccinelle rules have never executed;
+  - `semgrep 1.170` loads the ten rules fine but scans **0 targets** against the
+    bundled fixtures, since its default ignore patterns exclude `tests/`.
+
+What changed here is documentation, not behaviour:
+
+- **README** stage 1 now states plainly that a built-in matcher produces every
+  published figure, and that the files under `rules/` are reference
+  specifications for the same patterns whose `spatch` / `semgrep` path is
+  currently not working, with both root causes named.
+Five bugs stood between the shipped rules and a working run. All are fixed, and
+`--external-tools` now exists as a real, verified option:
+
+- `rules/coccinelle/shared_iv_no_snapshot.cocci`: the `@safe@` rule declared an
+  `expression iv` metavariable while also matching the literal field `ctx->iv`.
+  Coccinelle read the field name as the metavariable and rejected the whole
+  file. Renamed to `snap`.
+- `Scanner._run_coccinelle` now passes `-D report`. The `.cocci` files declare
+  `virtual report` and gate their `@script:python` blocks on it, so without that
+  flag spatch printed nothing no matter what matched.
+- `Scanner._parse_cocci_output` unpacked `RACEMAP:<file>:<line>:<field>` into
+  four names when it only ever yields three, so every emitted line raised
+  `ValueError` and was silently discarded. Fixed, and paths are relativised
+  against the scan target like every other engine's.
+- `Scanner._run_coccinelle` now checks spatch's exit status, so a rule file that
+  fails to load is reported instead of being indistinguishable from "matched
+  nothing" — that is how a broken rule stayed invisible in the first place.
+- `Scanner._run_semgrep` relativises `hit["path"]` the same way, and a new
+  `.semgrepignore` overrides Semgrep's built-in ignore list, which excludes
+  `tests/` and silently reduced any run against the bundled fixtures to zero
+  targets.
+
+Two changes were needed to make the merged output usable, both of which leave
+the default path byte-identical:
+
+- **`_dedupe()` keys on `(file, line)` and keeps the richest record.** Semgrep
+  matches several of its rules on one line and Coccinelle reports sites the
+  built-in matcher also finds; the old `(file, line, shared_field)` key let those
+  through as separate rows, so an external run listed the same site two or three
+  times.
+- **Engine-reported candidates are annotated with a mitigation verdict.**
+  Coccinelle and Semgrep report a match without saying whether the site is
+  already guarded, so every external finding came back "likely race" and the
+  exonerated variants disappeared. `_enrich_all()` now fills in
+  `mitigation_present` when an engine left it unset, using the same windowed
+  check the built-in detectors use. Built-in candidates always arrive with a
+  bool and are untouched.
+
+  `skb_cow_data()` is deliberately excluded from that check. A first draft
+  included it, which exonerated `net/tipc/crypto.c:26` — precisely the site the
+  Dirty Frag fixture exists to catch, since copying the data does not make the
+  fragments unshared. Only `skb_has_shared_frag()` qualifies.
+
+Verified in the project's own Docker image, which carries spatch 1.3 and
+semgrep 1.170:
+
+| | candidates | likely race |
+|---|---|---|
+| default (built-in matcher) | 23 | 12 |
+| `--external-tools` | 8 | 8 |
+
+The external path finds fewer sites by design: the rule files encode only the
+vulnerable shapes, while the built-in matcher also surfaces the guarded variants
+so the triage layer has something to exonerate. All nine `.cocci` rules load
+cleanly (`exit=0`) and together emit nine matches; Semgrep contributes ten.
+Note that `spatch --parse-cocci` reports failures for several rules that run
+correctly under `--sp-file ... -D report`, so that check over-reports when the
+virtual rule is undefined — use a real invocation to judge a rule.
+
+No detector, rule, fixture, or test assertion on the default path changed.
+`scan tests/sample_kernel` still reports 12 likely races across 23 candidates,
+`validate` still passes, and the 105-test suite is unchanged.
+
 ## v2.2 — Dirty Frag promoted to a measured ground-truth pair (2026-07-20)
 
 The demo video's closing card reads "Validated against public CVEs — Dirty

@@ -19,10 +19,20 @@ real identifiers.*
 
 racemap is two layers:
 
-**1. Static candidate detection.** Coccinelle and Semgrep rules (with a regex
-fallback when those tools are unavailable) match shared page-cache and zero-copy
-async patterns across the target subsystems. This layer is responsible for
-recall — it casts a wide net and produces candidates.
+**1. Static candidate detection.** A built-in pattern matcher scans the target
+subsystems for shared page-cache and zero-copy async handoff patterns. This
+layer is responsible for recall — it casts a wide net and produces candidates.
+It needs no external toolchain, so results are identical in Docker and on a
+developer box, and every figure in this README comes from it.
+
+The same patterns also ship as Coccinelle semantic patches and Semgrep rules
+under `rules/`. Pass `--external-tools` to run those instead; racemap warns and
+falls back to the built-in matcher if neither `spatch` nor `semgrep` is on PATH.
+Expect *fewer* candidates from that path — on the bundled sample tree the
+published rules report 8 sites against the built-in matcher's 23 — because the
+rule files encode only the vulnerable shapes, while the built-in matcher also
+surfaces the guarded variants so the triage layer has something to exonerate.
+Both paths feed the same triage and enrichment stages.
 
 **2. Deterministic triage.** Each candidate is triaged by a pluggable backend
 (Ollama, Anthropic, OpenAI, or Gemini, with an offline heuristic fallback that
@@ -106,6 +116,10 @@ python main.py diff --old /path/to/linux-6.7 --new /path/to/linux-6.8
 
 # Run the self-contained ground-truth validation
 python main.py validate
+
+# Run the shipped Coccinelle / Semgrep rules instead of the built-in matcher
+# (needs spatch and/or semgrep on PATH; the Docker image has both)
+python main.py scan /path/to/linux --external-tools
 
 # Export results as SARIF 2.1.0 (written to results/scan.sarif)
 python main.py scan /path/to/linux --output sarif

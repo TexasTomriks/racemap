@@ -1,0 +1,9 @@
+# racemap ships its fixtures under tests/, which Semgrep's built-in ignore list
+# excludes by default — that silently reduced `--external-tools` runs against the
+# bundled sample tree to zero targets. Providing this file replaces the defaults,
+# so the fixtures are scannable. Kept deliberately narrow.
+.git/
+__pycache__/
+.pytest_cache/
+results/
+node_modules/

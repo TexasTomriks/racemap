@@ -31,10 +31,12 @@ coccilib.report.print_report(
 
 // ---- SAFE: a per-request snapshot of ctx->iv exists before the setter -----
 // (documented as the negative pattern; suppressed from report output)
+// NB: the metavariable must not be named `iv`, or Coccinelle reads the `iv` in
+// `ctx->iv` as that metavariable in field position and fails to parse the rule.
 @safe exists@
 identifier ctx;
-expression req, src, dst, len, iv;
+expression req, src, dst, len, snap;
 @@
-  memcpy(iv, ctx->iv, ...);
+  memcpy(snap, ctx->iv, ...);
   ... when != ctx->iv = ...
-  skcipher_request_set_crypt(req, src, dst, len, iv)
+  skcipher_request_set_crypt(req, src, dst, len, snap)
