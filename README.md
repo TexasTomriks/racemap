@@ -191,8 +191,16 @@ racemap's ground-truth set includes a real async-request IV race in
 `crypto/algif_skcipher.c`, discovered and reported to security@kernel.org
 under coordinated disclosure (2026-06-07), with the fix authored by the same
 researcher. The stable maintainers accepted the series on 2026-07-17, queuing
-it for 7.1.y, 6.18.y, 6.12.y, 6.6.y, 6.1.y, 5.15.y, and 5.10.y. Technical
-analysis and the patch series are public:
+it for 7.1.y, 6.18.y, 6.12.y, 6.6.y, 6.1.y, 5.15.y, and 5.10.y. **Assigned
+CVE-2026-74578** (CVSS 3.1: 7.1 HIGH). Note: the CVE record's own description
+text does not name the reporter directly (standard for these records);
+attribution lives in the merged commit's `Reported-by`/`Signed-off-by`
+trailers instead, not in the CVE text itself. Mainline itself was never
+affected by this specific CVE — AIO-on-sockets had already been removed
+there for unrelated reasons (commit `fcc77d33a34c`), which the CVE record
+cites as reaching the same end state; that removal was too invasive to
+backport to stable as-is, hence the narrower fix here. Technical analysis
+and the patch series are public:
 https://lore.kernel.org/linux-crypto/20260716025838.2672-1-muhammetkaankilinc@gmail.com/
 
 A CVE is expected once the fix ships in a released stable kernel — the Linux
