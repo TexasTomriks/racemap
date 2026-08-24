@@ -125,6 +125,11 @@ _MITIGATION_BY_RULE: tuple[tuple[str, Pattern], ...] = (
     # shape); mitigation is a single atomic_try_cmpxchg()/atomic_cmpxchg()
     # loop replacing the separate read+dec.
     ("atomiccheckthendec", re.compile(r"\batomic_(try_)?cmpxchg\s*\(")),
+    # RCU-protected list/hlist walk takes a reference with bare
+    # refcount_inc()/atomic_inc() before returning the object, instead of
+    # refcount_inc_not_zero() (CVE-2026-63918 shape, l2tp). Mitigation is
+    # the not_zero variant itself.
+    ("rcubarerefcountinc", re.compile(r"\b(refcount|atomic)_inc_not_zero\s*\(")),
 )
 
 
