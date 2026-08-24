@@ -5,6 +5,7 @@ run needs no kernel toolchain). Added this session: toctou_double_fetch
 (CVE-2026-64034), vnet_hdr_no_snapshot (CVE-2026-31700), and
 atomic_check_then_dec (CVE-2026-43121), rcu_bare_refcount_inc
 (CVE-2026-63918), and timer_delete_no_sync_before_free (CVE-2026-23281
+shape, synthetic fixture), and free_before_irq_sync (CVE-2026-43426
 shape, synthetic fixture).
 
 Requires `spatch` on PATH -- skips (not fails) if it's absent, since these
@@ -64,6 +65,12 @@ CASES = [
         "path": GT_DIR / "timer_no_sync" / "timer_no_sync.c",
         "cve_id": "CVE-2026-23281",
         "shared_field": "timer_no_sync",
+    },
+    {
+        "id": "free_before_irq_sync",
+        "path": GT_DIR / "free_before_irq" / "free_before_irq.c",
+        "cve_id": "CVE-2026-43426",
+        "shared_field": "free_before_irq_sync",
     },
 ]
 
