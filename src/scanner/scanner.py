@@ -454,7 +454,8 @@ class Scanner:
         rule_path = self.rules_dir / "semgrep"
         try:
             proc = subprocess.run(
-                ["semgrep", "--config", str(rule_path), "--json", str(target)],
+                ["semgrep", "--config", str(rule_path), "--json",
+                 "--metrics=off", str(target)],
                 capture_output=True, text=True, timeout=1800,
             )
             data = json.loads(proc.stdout or "{}")
