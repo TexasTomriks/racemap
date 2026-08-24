@@ -33,9 +33,23 @@
 // after the exact word appearing in `X->field` syntax confuses this
 // Coccinelle build's parser.)
 //
+// TREE-WIDE WARNING (found 2026-08-24): a blind --dir /linux-upstream sweep
+// produced 4622 matches, almost entirely in mm/ and similar core code —
+// this pattern (bounds-check a value, then re-read the same expression
+// without a local snapshot) is extremely common in completely safe code
+// where the field is a stack local, a value already validated earlier, or
+// otherwise not concurrently-mutable shared/DMA/MMIO memory; Coccinelle
+// has no type/ownership information to filter those out. This rule is
+// NOT usable as a blind tree-wide scanner. Use it targeted: against a
+// specific file/function an analyst already suspects handles
+// attacker/device/hypervisor-writable shared memory (DMA buffers, MMIO,
+// SEV-SNP/TDX shared pages, io_uring/vhost rings), the way it was
+// originally built and validated against CVE-2026-64034.
+//
 // Output convention: each match prints  // RACEMAP:<file>:<line>:<field>
 //
-// Run:  spatch --sp-file toctou_double_fetch.cocci -D report --dir <kernel>/drivers
+// Run:  spatch --sp-file toctou_double_fetch.cocci -D report <specific-file-or-dir>
+//       (NOT a full-tree --dir sweep -- see TREE-WIDE WARNING above)
 
 virtual report
 

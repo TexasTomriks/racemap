@@ -21,6 +21,24 @@
 // Exonerates: the same shape where atomic_try_cmpxchg(X, ...) replaces the
 // separate read+dec entirely.
 //
+// TREE-WIDE REVIEW (2026-08-24): a full-tree sweep produced 11 matches;
+// none were confirmed as real bugs after manual review. The dominant
+// false-positive class is a caller-side lock the rule can't see: e.g.
+// drivers/net/ethernet/chelsio/cxgb4/l2t.c's alloc_l2e() is documented
+// "Must be called with l2t_data.lock held", and
+// drivers/vfio/mdev/mdev_core.c has an explicit in-code comment
+// ("non-atomic read and dec is fine here because all modifications are
+// under mdev_list_lock") for the exact shape this rule flags. The zcrx
+// ground-truth bug was real specifically BECAUSE it lacked such a lock;
+// this rule has no way to check for one, so every hit still needs the
+// same manual/LLM-triage pass a human would give any static match — lock-
+// protection is a fundamentally different (and harder to automate)
+// mitigation signal than "was there a nearby atomic_try_cmpxchg()". One
+// hit (fs/smb/server/smb2pdu.c:9507, ksmbd's opinfo->breaking_cnt) looked
+// plausibly racy on review but its impact, if real, is a plain counter
+// going wrong rather than a double-free/UAF like zcrx's -- not pursued
+// further; see POTENTIAL-FINDINGS.md.
+//
 // Output convention: each match prints  // RACEMAP:<file>:<line>:<field>
 //
 // Run:  spatch --sp-file atomic_check_then_dec.cocci -D report --dir <kernel>/io_uring
