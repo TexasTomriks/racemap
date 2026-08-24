@@ -203,11 +203,9 @@ backport to stable as-is, hence the narrower fix here. Technical analysis
 and the patch series are public:
 https://lore.kernel.org/linux-crypto/20260716025838.2672-1-muhammetkaankilinc@gmail.com/
 
-A CVE is expected once the fix ships in a released stable kernel — the Linux
-CNA assigns after release, not on acceptance. No proof-of-concept or exploit
-code is included in this repository; the working PoC stays unpublished until
-the fix reaches released stable kernels, per the commitment made in the patch
-cover letter.
+No proof-of-concept or exploit code is included in this repository; the
+working PoC stays unpublished, per the commitment made in the patch cover
+letter.
 
 ## License
 
