@@ -110,6 +110,11 @@ _MITIGATION_BY_RULE: tuple[tuple[str, Pattern], ...] = (
     # hci_enhanced_setup_sync(), commit 42de40abe25d). Mitigation is the
     # reference-hold call itself.
     ("btdeferredqueue", re.compile(r"\bhci_conn_get\s*\(")),
+    # Double-fetch TOCTOU (CVE-2026-64034 shape): a shared/DMA-visible field
+    # is checked once then reused; mitigation is snapshotting it into a
+    # local via READ_ONCE() before the check, so a nearby READ_ONCE( is the
+    # signal the value was actually snapshotted rather than re-read raw.
+    ("toctoudoublefetch", re.compile(r"\bREAD_ONCE\s*\(")),
 )
 
 
