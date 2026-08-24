@@ -24,6 +24,23 @@
 // reduction; this rule generalizes to the more literal kfree()-before-
 // free_irq() variant of the same ordering mistake).
 //
+// TREE-WIDE REVIEW (2026-08-24): 45 hits on a full-tree sweep. The
+// dominant false-positive class is LOOP-ITERATION CONFLATION: Coccinelle's
+// "..." is flow-insensitive about loop boundaries, so a kfree() in one
+// loop iteration/branch can get paired with an unrelated free_irq() call
+// from a DIFFERENT iteration or error-unwind label in the same function
+// (e.g. drivers/vfio/platform/vfio_platform_irq.c's per-index cleanup
+// loop) even though the real per-iteration order is correct. The second
+// false-positive class is simply an unrelated free: kfree(X) and the
+// free_irq()'s dev-arg not actually being the same object/data the ISR
+// touches (this rule has no cross-reference for that -- see
+// drivers/misc/cardreader/rtsx_pcr.c:1582 for a concrete instance, whose
+// investigation also surfaced a DIFFERENT, low-severity, not-pursued lead:
+// a probe()-failure path there frees pcr->slots without
+// cancel_delayed_work_sync(&pcr->carddet_work), which free_irq() alone
+// does not protect against; see POTENTIAL-FINDINGS.md). Every hit still
+// needs manual verification of what the ISR actually dereferences.
+//
 // Detects: kfree(X); ... free_irq(...)|devm_free_irq(...); in one function.
 // Exonerates: free_irq()/devm_free_irq() called before the kfree().
 //
