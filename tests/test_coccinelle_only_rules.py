@@ -3,8 +3,9 @@ built-in regex-detector equivalent (unlike the patterns in expected.json's
 "cases", which the built-in fallback covers so the default hermetic pytest
 run needs no kernel toolchain). Added this session: toctou_double_fetch
 (CVE-2026-64034), vnet_hdr_no_snapshot (CVE-2026-31700), and
-atomic_check_then_dec (CVE-2026-43121), and rcu_bare_refcount_inc
-(CVE-2026-63918).
+atomic_check_then_dec (CVE-2026-43121), rcu_bare_refcount_inc
+(CVE-2026-63918), and timer_delete_no_sync_before_free (CVE-2026-23281
+shape, synthetic fixture).
 
 Requires `spatch` on PATH -- skips (not fails) if it's absent, since these
 patterns have no fallback path to exercise instead. If a --external-tools
@@ -57,6 +58,12 @@ CASES = [
         "path": GT_DIR / "cve_2026_63918" / "l2tp_ifname_get.c",
         "cve_id": "CVE-2026-63918",
         "shared_field": "rcu_bare_refcount_inc",
+    },
+    {
+        "id": "timer_delete_no_sync_before_free",
+        "path": GT_DIR / "timer_no_sync" / "timer_no_sync.c",
+        "cve_id": "CVE-2026-23281",
+        "shared_field": "timer_no_sync",
     },
 ]
 

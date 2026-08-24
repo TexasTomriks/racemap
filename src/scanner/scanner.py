@@ -130,6 +130,10 @@ _MITIGATION_BY_RULE: tuple[tuple[str, Pattern], ...] = (
     # refcount_inc_not_zero() (CVE-2026-63918 shape, l2tp). Mitigation is
     # the not_zero variant itself.
     ("rcubarerefcountinc", re.compile(r"\b(refcount|atomic)_inc_not_zero\s*\(")),
+    # timer_delete()/del_timer() (non-sync) followed by a free, no _sync
+    # variant in between (CVE-2026-23281 shape, libertas). Mitigation is
+    # the sync variant itself.
+    ("timerdeletenosyncbeforefree", re.compile(r"\b(timer_delete_sync|del_timer_sync)\s*\(")),
 )
 
 
