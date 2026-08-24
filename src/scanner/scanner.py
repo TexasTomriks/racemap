@@ -115,6 +115,12 @@ _MITIGATION_BY_RULE: tuple[tuple[str, Pattern], ...] = (
     # local via READ_ONCE() before the check, so a nearby READ_ONCE( is the
     # signal the value was actually snapshotted rather than re-read raw.
     ("toctoudoublefetch", re.compile(r"\bREAD_ONCE\s*\(")),
+    # Raw pointer into shared/mmap'd memory passed straight to
+    # virtio_net_hdr_to_skb() (CVE-2026-31700 shape); mitigation is a
+    # memcpy() snapshot into a stack-local before use. Named "vnethdr", not
+    # "mmap...", to avoid colliding with the existing "mmap" fragment
+    # (CVE-2022-2590's VMA-stability check) via a substring match.
+    ("vnethdr", re.compile(r"\bmemcpy\b")),
 )
 
 

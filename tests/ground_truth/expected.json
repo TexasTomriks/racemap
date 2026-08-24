@@ -72,7 +72,7 @@
       "shared_field": "skb(shared_frag)",
       "expect_race": true,
       "expect_safe": true,
-      "rationale": "In-place AEAD decrypt (src == dst) over an skb with possibly-shared fragments and no skb_has_shared_frag() guard — the ESP in-place-decryption bug, CVE-2026-43284 (Dirty Frag), expressed against the equivalent TIPC path. The fixed variant adds the shared-fragment guard."
+      "rationale": "In-place AEAD decrypt (src == dst) over an skb with possibly-shared fragments and no skb_has_shared_frag() guard \u2014 the ESP in-place-decryption bug, CVE-2026-43284 (Dirty Frag), expressed against the equivalent TIPC path. The fixed variant adds the shared-fragment guard."
     }
   ]
 }
