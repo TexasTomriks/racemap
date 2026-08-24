@@ -2,7 +2,8 @@
 built-in regex-detector equivalent (unlike the patterns in expected.json's
 "cases", which the built-in fallback covers so the default hermetic pytest
 run needs no kernel toolchain). Added this session: toctou_double_fetch
-(CVE-2026-64034) and vnet_hdr_no_snapshot (CVE-2026-31700).
+(CVE-2026-64034), vnet_hdr_no_snapshot (CVE-2026-31700), and
+atomic_check_then_dec (CVE-2026-43121).
 
 Requires `spatch` on PATH -- skips (not fails) if it's absent, since these
 patterns have no fallback path to exercise instead. If a --external-tools
@@ -43,6 +44,12 @@ CASES = [
         "path": GT_DIR / "cve_2026_31700" / "vnet_hdr.c",
         "cve_id": "CVE-2026-31700",
         "shared_field": "vnet_hdr",
+    },
+    {
+        "id": "atomic_check_then_dec",
+        "path": GT_DIR / "cve_2026_43121" / "zcrx_uref.c",
+        "cve_id": "CVE-2026-43121",
+        "shared_field": "atomic_t",
     },
 ]
 

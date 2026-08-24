@@ -121,6 +121,10 @@ _MITIGATION_BY_RULE: tuple[tuple[str, Pattern], ...] = (
     # "mmap...", to avoid colliding with the existing "mmap" fragment
     # (CVE-2022-2590's VMA-stability check) via a substring match.
     ("vnethdr", re.compile(r"\bmemcpy\b")),
+    # Non-atomic check-then-decrement on a shared atomic_t (CVE-2026-43121
+    # shape); mitigation is a single atomic_try_cmpxchg()/atomic_cmpxchg()
+    # loop replacing the separate read+dec.
+    ("atomiccheckthendec", re.compile(r"\batomic_(try_)?cmpxchg\s*\(")),
 )
 
 
