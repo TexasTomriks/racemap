@@ -137,6 +137,9 @@ _MITIGATION_BY_RULE: tuple[tuple[str, Pattern], ...] = (
     # list_del() (non-RCU) immediately before call_rcu()-deferred free
     # (CVE-2026-46324 shape, nf_tables). Mitigation is list_del_rcu().
     ("listdelbeforecallrcu", re.compile(r"\blist_del_rcu\s*\(")),
+    # A second, linked inode dereferenced (->i_mapping) without igrab()
+    # (f2fs atomic_inode UAF shape). Mitigation is the igrab() call.
+    ("linkedinodenoigrab", re.compile(r"\bigrab\s*\(")),
     # send_sig()+kthread_stop() on a self-terminating kthread with no
     # get_task_struct() bracketing (CVE-2026-46180 shape, brcmfmac).
     # Mitigation is the pin/unpin call itself.

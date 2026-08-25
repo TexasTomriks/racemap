@@ -7,8 +7,9 @@ atomic_check_then_dec (CVE-2026-43121), rcu_bare_refcount_inc
 (CVE-2026-63918), and timer_delete_no_sync_before_free (CVE-2026-23281
 shape, synthetic fixture), free_before_irq_sync (CVE-2026-43426
 shape, synthetic fixture), kthread_stop_without_get_task
-(CVE-2026-46180 shape, synthetic fixture), and list_del_before_call_rcu
-(CVE-2026-46324 shape, nf_tables).
+(CVE-2026-46180 shape, synthetic fixture), list_del_before_call_rcu
+(CVE-2026-46324 shape, nf_tables), and linked_inode_no_igrab (f2fs
+atomic_inode UAF shape).
 
 Requires `spatch` on PATH -- skips (not fails) if it's absent, since these
 patterns have no fallback path to exercise instead. If a --external-tools
@@ -85,6 +86,12 @@ CASES = [
         "path": GT_DIR / "nf_tables_hook" / "nft_hook_unregister.c",
         "cve_id": "CVE-2026-46324",
         "shared_field": "list_del_rcu",
+    },
+    {
+        "id": "linked_inode_no_igrab",
+        "path": GT_DIR / "f2fs_gc" / "f2fs_ra_data_block.c",
+        "cve_id": "CVE-2026-63816",
+        "shared_field": "linked_inode",
     },
 ]
 
