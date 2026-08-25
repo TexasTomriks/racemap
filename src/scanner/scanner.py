@@ -134,6 +134,10 @@ _MITIGATION_BY_RULE: tuple[tuple[str, Pattern], ...] = (
     # variant in between (CVE-2026-23281 shape, libertas). Mitigation is
     # the sync variant itself.
     ("timerdeletenosyncbeforefree", re.compile(r"\b(timer_delete_sync|del_timer_sync)\s*\(")),
+    # send_sig()+kthread_stop() on a self-terminating kthread with no
+    # get_task_struct() bracketing (CVE-2026-46180 shape, brcmfmac).
+    # Mitigation is the pin/unpin call itself.
+    ("kthreadstopwithoutgettask", re.compile(r"\bget_task_struct\s*\(")),
 )
 
 
