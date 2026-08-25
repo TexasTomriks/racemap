@@ -22,6 +22,27 @@
 // instance shows up elsewhere before building a second rule for that
 // variant.)
 //
+// TREE-WIDE REVIEW (2026-08-25/26): 6 hits, all in drivers/target/iscsi/
+// (LIO iSCSI target). Deep investigation (multi-function control-flow
+// tracing) found this SAME bug class was already found and fixed in this
+// exact subsystem in 2017: commit 5e0cf5e6c43b9e19fc0284f69e5cd2b4a47523b0
+// ("iscsi-target: Always wait for kthread_should_stop() before kthread
+// exit", stable v3.12+). That fix introduced the `conn_freed` flag and
+// the `connection_exit` atomic gate in iscsit_take_action_for_
+// connection_exit() (iscsi_target_erl0.c) specifically so that a thread
+// only skips its own `while (!kthread_should_stop()) msleep(100);` exit
+// gate when it has independently proven (by winning that atomic gate)
+// that it is the one closing the connection -- in which case it only
+// ever calls kthread_stop() on the OTHER thread, never itself, and that
+// other thread is guaranteed to have LOST the gate and be safely parked
+// in its own msleep loop. All 6 flagged call sites are covered by this
+// architecture. Confirmed false positive: this rule sees the surface
+// syntax (send_sig()+kthread_stop(), no get_task_struct()) but has no way
+// to see the cross-function `conn_freed`/`connection_exit` protection a
+// prior real fix specifically built for this exact case -- a clear
+// example of why every hit needs manual/LLM verification, not just
+// pattern matching. See POTENTIAL-FINDINGS.md for the full writeup.
+//
 // Detects: send_sig(sig, task, ...); ... kthread_stop(task); with no
 // get_task_struct(task) call anywhere in the same function before the
 // kthread_stop().
