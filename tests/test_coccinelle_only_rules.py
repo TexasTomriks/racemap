@@ -6,8 +6,9 @@ run needs no kernel toolchain). Added this session: toctou_double_fetch
 atomic_check_then_dec (CVE-2026-43121), rcu_bare_refcount_inc
 (CVE-2026-63918), and timer_delete_no_sync_before_free (CVE-2026-23281
 shape, synthetic fixture), free_before_irq_sync (CVE-2026-43426
-shape, synthetic fixture), and kthread_stop_without_get_task
-(CVE-2026-46180 shape, synthetic fixture).
+shape, synthetic fixture), kthread_stop_without_get_task
+(CVE-2026-46180 shape, synthetic fixture), and list_del_before_call_rcu
+(CVE-2026-46324 shape, nf_tables).
 
 Requires `spatch` on PATH -- skips (not fails) if it's absent, since these
 patterns have no fallback path to exercise instead. If a --external-tools
@@ -78,6 +79,12 @@ CASES = [
         "path": GT_DIR / "kthread_stop" / "kthread_stop_watchdog.c",
         "cve_id": "CVE-2026-46180",
         "shared_field": "kthread_task_struct",
+    },
+    {
+        "id": "list_del_before_call_rcu",
+        "path": GT_DIR / "nf_tables_hook" / "nft_hook_unregister.c",
+        "cve_id": "CVE-2026-46324",
+        "shared_field": "list_del_rcu",
     },
 ]
 
