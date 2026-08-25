@@ -26,6 +26,21 @@
 // queuemap's model) if a similar bug is found through a different
 // second-hop field.
 //
+// TREE-WIDE WARNING (found 2026-08-26): a blind --dir /linux-upstream
+// sweep produced 130+ matches -- `X->Y->i_mapping` is an extremely
+// common, ordinarily-safe idiom in the kernel for reaching the
+// address_space of an object already reachable through a STABLE pointer
+// (e.g. fs/open.c's `f->f_mapping->host->i_mapping`,
+// drm_file.c's `dev->anon_inode->i_mapping` -- neither `host` nor
+// `anon_inode` is independently, concurrently evictable the way f2fs's
+// atomic_inode is). Coccinelle has no way to know which second-hop field
+// names denote an independently-lifecycled linked inode versus a stable
+// one; this rule is NOT usable as a blind tree-wide scanner. Use it
+// targeted: against a specific field name an analyst already suspects
+// (e.g. by grepping for iput()/evict-path clearing of that exact field
+// elsewhere in the same subsystem), the way it was originally built and
+// validated against the f2fs atomic_inode fix.
+//
 // Detects: obj->lfield->i_mapping used, with no igrab(obj->lfield) call
 // anywhere earlier in the same function.
 // Exonerates: igrab(obj->lfield) called first.
