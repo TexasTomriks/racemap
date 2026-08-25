@@ -20,6 +20,23 @@
 // (subreq, dreq, oreq) as a defensive margin; extend this list if a future
 // scan turns up another safe-but-flagged naming convention.
 //
+// v3 (2026-08-25): a full-tree sweep after v2 still produced 10 hits; 9 of
+// them (crypto/gcm.c, crypto/adiantum.c, crypto/chacha20poly1305.c,
+// fs/ecryptfs/keystore.c) were a SECOND false-positive class the identifier
+// exclusion didn't cover: `ctx` freshly kzalloc()'d INSIDE the same
+// function that uses `ctx->iv`, then used entirely synchronously
+// (crypto_wait_req() or equivalent) before the function returns -- a
+// private, single-use local allocation, not the persistent, externally-
+// mutable-via-a-second-syscall context this rule targets (algif_skcipher's
+// `ctx` is looked up from the *socket*, allocated once at accept() time in
+// a wholly different function, and remains live and reachable by a second
+// concurrent syscall for as long as the socket exists). Added a `when !=
+// ctx = <alloc_fn>(...)` exclusion: if the same function that uses
+// `ctx->iv` also allocates `ctx` itself, the object cannot be the
+// persistent shared kind. The one real hit (algif_skcipher.c:148) is
+// unaffected -- its `ctx` comes from the socket's private data, never
+// locally allocated in the vulnerable function.
+//
 // Output convention: each match prints  // RACEMAP:<file>:<line>:<field>
 // which src/scanner/scanner.py parses into a Candidate.
 //
@@ -29,11 +46,23 @@ virtual report
 
 // ---- VULNERABLE: ctx->iv handed directly to the async setter --------------
 @race exists@
+identifier func;
 identifier ctx != {req, areq, subreq, dreq, oreq};
 expression req2, src, dst, len;
 position p;
 @@
+  func(...)
+  {
+  ...
+  when != ctx = kzalloc(...)
+  when != ctx = kzalloc_obj(...)
+  when != ctx = kmalloc(...)
+  when != ctx = kmalloc_obj(...)
+  when != ctx = kvzalloc(...)
+  when != ctx = kvmalloc(...)
   skcipher_request_set_crypt@p(req2, src, dst, len, ctx->iv)
+  ...
+  }
 
 @script:python depends on race && report@
 p << race.p;

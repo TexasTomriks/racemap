@@ -11,6 +11,12 @@
  *
  * racemap must flag the vulnerable variant as likely_race and exonerate the
  * guarded variant. Synthetic test input -- not a working exploit.
+ *
+ * v2 (2026-08-25): added the skb_to_sgvec() call that the real
+ * tipc_aead_decrypt()/esp_input() always have before building `sg` -- the
+ * rule now requires seeing it (to distinguish an skb-derived scatterlist
+ * from an unrelated local/raw-pointer one; see inplace_decrypt_no_cow.cocci
+ * for the tree-wide false-positive review that motivated this).
  */
 #include <crypto/aead.h>
 #include <linux/skbuff.h>
@@ -25,6 +31,14 @@ static int tipc_aead_decrypt(struct net *net, struct tipc_aead *aead,
 	nsg = skb_cow_data(skb, 0, &unused);
 	if (nsg < 0)
 		return nsg;
+
+	sg = kmalloc_array(nsg, sizeof(*sg), GFP_ATOMIC);
+	if (!sg)
+		return -ENOMEM;
+	sg_init_table(sg, nsg);
+	err = skb_to_sgvec(skb, sg, 0, skb->len);
+	if (err < 0)
+		return err;
 
 #ifndef FIXED
 	/* VULNERABLE: in-place decrypt (src == dst) with no shared-fragment
