@@ -37,6 +37,20 @@
 // unaffected -- its `ctx` comes from the socket's private data, never
 // locally allocated in the vulnerable function.
 //
+// v4 (2026-08-25): re-scan after v3 still had 6 hits. crypto/gcm.c:162
+// was a THIRD false-positive class: `ctx` (there, `pctx`) obtained via
+// crypto_gcm_reqctx(req) -- a per-*request* context accessor, not a local
+// alloc -- added as another `when !=` exclusion. The remaining 5
+// (crypto/chacha20poly1305.c x3, drivers/crypto/hisilicon/sec2/
+// sec_crypto.c, and algif_skcipher.c) are, respectively: chacha20poly1305
+// taking the address of a field WITHIN a per-request context
+// (`&rctx->u.chacha`, one more indirection level than either exclusion
+// above catches -- a genuinely long tail of per-algorithm "this is
+// request-scoped" idioms not chased further here), sec_crypto's confirmed
+// synchronous-fallback false positive (see POTENTIAL-FINDINGS.md), and
+// algif_skcipher.c -- the one real, already-disclosed hit (CVE-2026-74578),
+// correctly still flagged.
+//
 // Output convention: each match prints  // RACEMAP:<file>:<line>:<field>
 // which src/scanner/scanner.py parses into a Candidate.
 //
@@ -48,7 +62,7 @@ virtual report
 @race exists@
 identifier func;
 identifier ctx != {req, areq, subreq, dreq, oreq};
-expression req2, src, dst, len;
+expression req2, src, dst, len, reqarg;
 position p;
 @@
   func(...)
@@ -60,6 +74,9 @@ position p;
   when != ctx = kmalloc_obj(...)
   when != ctx = kvzalloc(...)
   when != ctx = kvmalloc(...)
+  when != ctx = crypto_gcm_reqctx(reqarg)
+  when != ctx = aead_request_ctx(reqarg)
+  when != ctx = skcipher_request_ctx(reqarg)
   skcipher_request_set_crypt@p(req2, src, dst, len, ctx->iv)
   ...
   }
