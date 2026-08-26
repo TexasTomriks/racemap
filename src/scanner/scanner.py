@@ -140,6 +140,10 @@ _MITIGATION_BY_RULE: tuple[tuple[str, Pattern], ...] = (
     # A second, linked inode dereferenced (->i_mapping) without igrab()
     # (f2fs atomic_inode UAF shape). Mitigation is the igrab() call.
     ("linkedinodenoigrab", re.compile(r"\bigrab\s*\(")),
+    # xa_erase() return discarded, stale xa_for_each() iterator used for
+    # a put/free call instead (CVE-2026-46316 shape, KVM vgic-its).
+    # Mitigation is reassigning the iterator to xa_erase()'s own return.
+    ("xaerasestaleiter", re.compile(r"=\s*xa_erase\s*\(")),
     # send_sig()+kthread_stop() on a self-terminating kthread with no
     # get_task_struct() bracketing (CVE-2026-46180 shape, brcmfmac).
     # Mitigation is the pin/unpin call itself.
