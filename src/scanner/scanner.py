@@ -104,6 +104,12 @@ _MITIGATION_BY_RULE: tuple[tuple[str, Pattern], ...] = (
     ("canmerge",  re.compile(r"(buf->flags\s*=\s*0|\bPageAnon\b|\.flags\s*=\s*0)")),
     ("mmap",      re.compile(r"\b(vma_lookup|vma_is_stable|VM_FAULT_RETRY|"
                      r"FAULT_FLAG_ALLOW_RETRY)\b")),
+    # Bluetooth hci_cmd_sync_queue(): a bare struct hci_conn* handed to a
+    # deferred-work wrapper without hci_conn_get() bracketing its lifetime
+    # (the exact shape of the confirmed, real, fixed 2026-08-06 UAF in
+    # hci_enhanced_setup_sync(), commit 42de40abe25d). Mitigation is the
+    # reference-hold call itself.
+    ("btdeferredqueue", re.compile(r"\bhci_conn_get\s*\(")),
 )
 
 
