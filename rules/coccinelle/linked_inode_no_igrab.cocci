@@ -8,8 +8,10 @@
 // clearing and iput()-ing it, for one) at any time this function doesn't
 // itself hold a reference on it -- CWE-416 UAF.
 //
-// Ground truth: multiple f2fs "atomic: fix UAF issue on
-// f2fs_inode_info.atomic_inode" fixes (e.g. commit e0288584baa5) --
+// Ground truth: CVE-2026-63816 (f2fs) plus multiple earlier f2fs
+// "atomic: fix UAF issue on f2fs_inode_info.atomic_inode" fixes (e.g.
+// commit e0288584baa5) -- the same bug class, found and fixed more than
+// once as f2fs's atomic-write/COW-inode support evolved:
 // ra_data_block() and move_data_block() (fs/f2fs/gc.c) dereferenced
 // F2FS_I(inode)->atomic_inode->i_mapping directly during garbage
 // collection while a concurrent f2fs_evict_inode() on the atomic_inode

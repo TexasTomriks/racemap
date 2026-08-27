@@ -21,10 +21,13 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
 
+      - name: Install Coccinelle (spatch)
+        run: sudo apt-get update && sudo apt-get install -y coccinelle
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
       - name: Run tests
-        run: pytest -q
+        run: pytest -q -rs

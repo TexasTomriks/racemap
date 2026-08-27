@@ -160,13 +160,39 @@ is also included: `streamlit run src/ui/app.py`.
 Two separate things are measured here; the numbers below come from different
 commands and it is worth keeping them apart.
 
-**The ground-truth suite** lives in `tests/ground_truth/` and is declared in
-`expected.json`: the reported algif_skcipher race, four zero-copy attack-surface
-patterns (A–D), and three public CVEs — Dirty Pipe (CVE-2022-0847), a
-`copy_from_user`-under-`mmap_read_lock` VMA-stability bug (CVE-2022-2590), and
-the ESP in-place-decryption bug Dirty Frag (CVE-2026-43284). Each carries a
-vulnerable and a fixed variant, and the scanner must flag the former and
-exonerate the latter. Run it with:
+**The ground-truth suite** lives in `tests/ground_truth/` and covers 20
+Coccinelle rules total, declared across `expected.json` (the 7 rules with a
+built-in-matcher fallback, so these run in the default hermetic `pytest`
+pass with no kernel toolchain needed) and `tests/test_coccinelle_only_rules.py`
+(10 rules with no fallback — these need `spatch` on `PATH` and skip
+otherwise, see the v2.7 CHANGELOG entry for why CI now installs it):
+
+- the reported algif_skcipher race (**CVE-2026-74578**, see
+  [Disclosure](#disclosure));
+- four zero-copy attack-surface patterns (A–D);
+- Dirty Pipe (**CVE-2022-0847**), a `copy_from_user`-under-`mmap_read_lock`
+  VMA-stability bug (**CVE-2022-2590**), and the ESP in-place-decryption bug
+  Dirty Frag (**CVE-2026-43284**);
+- a Bluetooth `hci_conn` deferred-work UAF (fixed upstream commit
+  `42de40abe25d`, no CVE assigned at time of writing);
+- ten rules each derived from a real 2026 upstream fix — a `net/packet`
+  mmap'd-`vnet_hdr` TOCTOU (**CVE-2026-31700**), a non-atomic
+  check-then-decrement race (**CVE-2026-43121**), an RCU bare-refcount
+  reader race (**CVE-2026-63918**), an RCU list-removal/`call_rcu` mismatch
+  (**CVE-2026-46324** shape, nf_tables), a stale-iterator double-put on an
+  `xarray` (**CVE-2026-46316**, KVM vgic-its), an f2fs linked-inode UAF
+  (**CVE-2026-63816**), a generic DMA/shared-memory double-fetch
+  (**CVE-2026-64034** shape), a timer-teardown-before-free ordering bug
+  (**CVE-2026-23281** shape), an IRQ-teardown-before-free ordering bug
+  (**CVE-2026-43426** shape), and a kthread self-termination UAF
+  (**CVE-2026-46180** shape). "Shape" rules generalize the real fix's
+  pattern rather than reproducing that exact call site, so they are
+  validated against a synthetic fixture built to the same shape, not
+  against the original vulnerable file — see each rule's own header comment
+  in `rules/coccinelle/` for the specific fix commit it was derived from.
+
+Each carries a vulnerable and a fixed variant, and the scanner must flag the
+former and exonerate the latter. Run it with:
 
 ```bash
 pytest tests/test_ground_truth.py
@@ -189,19 +215,19 @@ python main.py clear-cache && python main.py scan tests/sample_kernel --llm heur
 
 racemap's ground-truth set includes a real async-request IV race in
 `crypto/algif_skcipher.c`, discovered and reported to security@kernel.org
-under coordinated disclosure (2026-06-07), with the fix authored by the same
-researcher. The stable maintainers accepted the series on 2026-07-17, queuing
-it for 7.1.y, 6.18.y, 6.12.y, 6.6.y, 6.1.y, 5.15.y, and 5.10.y. **Assigned
-CVE-2026-74578** (CVSS 3.1: 7.1 HIGH). Note: the CVE record's own description
-text does not name the reporter directly (standard for these records);
-attribution lives in the merged commit's `Reported-by`/`Signed-off-by`
-trailers instead, not in the CVE text itself. Mainline itself was never
-affected by this specific CVE — AIO-on-sockets had already been removed
-there for unrelated reasons (commit `fcc77d33a34c`), which the CVE record
-cites as reaching the same end state; that removal was too invasive to
-backport to stable as-is, hence the narrower fix here. Technical analysis
-and the patch series are public:
-https://lore.kernel.org/linux-crypto/20260716025838.2672-1-muhammetkaankilinc@gmail.com/
+under coordinated disclosure (2026-06-07) by this project's author,
+**Muhammet Kaan KILINÇ**, who also authored the fix. The stable maintainers
+accepted the series on 2026-07-17, queuing it for 7.1.y, 6.18.y, 6.12.y,
+6.6.y, 6.1.y, 5.15.y, and 5.10.y. **Assigned CVE-2026-74578** (CVSS 3.1: 7.1
+HIGH). Note: the CVE record's own description text does not name the
+reporter directly (standard for these records); attribution lives in the
+merged commit's `Reported-by`/`Signed-off-by` trailers instead, not in the
+CVE text itself. Mainline itself was never affected by this specific CVE —
+AIO-on-sockets had already been removed there for unrelated reasons (commit
+`fcc77d33a34c`), which the CVE record cites as reaching the same end state;
+that removal was too invasive to backport to stable as-is, hence the
+narrower fix here. The merged stable fix is public:
+https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=b05defc41b27c7d0c05c45f67bf5b91c28f93669
 
 No proof-of-concept or exploit code is included in this repository; the
 working PoC stays unpublished, per the commitment made in the patch cover

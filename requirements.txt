@@ -4,6 +4,7 @@ pydantic>=2.6
 rich>=13.7
 requests>=2.31        # Ollama HTTP client
 semgrep>=1.50          # static analysis engine (installed in the Docker image)
+pyyaml>=6.0             # SARIF/Semgrep rule-config parsing (used directly, not a transitive semgrep dep)
 
 # Optional cloud triage backends (only used when the matching API key is set)
 anthropic>=0.34            # --llm anthropic   (ANTHROPIC_API_KEY)

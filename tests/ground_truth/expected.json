@@ -9,7 +9,7 @@
       "unsnapshotted shared state passed to async request",
       "data-confidentiality impact on the async request path"
     ],
-    "report": "Reported to security@kernel.org (2026-06-07); fix authored by the same researcher and accepted by the stable maintainers (2026-07-17), queued for 7.1.y, 6.18.y, 6.12.y, 6.6.y, 6.1.y, 5.15.y, 5.10.y. Public: https://lore.kernel.org/linux-crypto/20260716025838.2672-1-muhammetkaankilinc@gmail.com/. CVE assignment pending release in a stable point release."
+    "report": "Reported to security@kernel.org (2026-06-07) by this project's author, Muhammet Kaan KILINÇ, who also authored the fix; accepted by the stable maintainers (2026-07-17), queued for 7.1.y, 6.18.y, 6.12.y, 6.6.y, 6.1.y, 5.15.y, 5.10.y. Assigned CVE-2026-74578 (CVSS 3.1: 7.1 HIGH). Fix: https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=b05defc41b27c7d0c05c45f67bf5b91c28f93669"
   },
   "cases": [
     {

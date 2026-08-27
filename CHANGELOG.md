@@ -5,6 +5,130 @@ Entries below track revisions to this repository **after** the Arsenal Europe
 string (`racemap --version`, currently 0.1.0), which has not changed: nothing
 here alters the scanner's published behaviour or figures.
 
+## v2.7 — ground-truth expansion: 11 new CVE-derived rules, two false-positive-flood fixes, CVE-2026-74578 assigned (2026-08-24 to 2026-08-26)
+
+The largest single pass since the Arsenal submission: the rule set roughly
+doubled (9 → 20 Coccinelle rules) by working forward from real, recent
+(2026) upstream fix commits instead of writing rules against a single known
+CVE. Each new rule was validated the same way the original ground truth is:
+extracted the pre-fix and post-fix version of the real file via
+`git show <fix-commit>^:...` / `git show <fix-commit>:...`, ran it through
+`main.py scan --external-tools`, and confirmed the vulnerable variant flags
+and the fixed variant is exonerated, before adding it to `expected.json`
+and `tests/test_ground_truth.py`. Every rule below has a paired
+vulnerable/fixed fixture under `tests/ground_truth/`.
+
+**11 new rules, one per commit, each tied to a real fix:**
+
+- `bt_deferred_queue_no_ref` — Bluetooth `hci_conn_get()`/`_put()` missing
+  around a deferred-work handoff (`net/bluetooth/hci_conn.c`'s
+  `hci_enhanced_setup_sync()`, fixed upstream 2026-08-06, commit
+  `42de40abe25d`). Same failure family as the original algif_skcipher
+  ground truth (shared state handed to a deferred/async op with no
+  ownership transfer) but a **pointer-lifetime** UAF variant instead of a
+  **value-staleness** one.
+- `toctou_double_fetch` (CVE-2026-64034) — a shared/DMA-visible field read
+  twice (check, then use) with no `READ_ONCE()` snapshot between. Flagged
+  as tree-wide-unsafe in its own header: 4622 raw hits against
+  `linux-upstream`, dominated by unrelated re-reads; intended for targeted
+  use against a named suspect field, not blind `--dir` sweeps.
+- `vnet_hdr_no_snapshot` (CVE-2026-31700) — `net/packet` TOCTOU on an
+  mmap'd `vnet_hdr` passed by raw pointer into `virtio_net_hdr_to_skb()`
+  instead of a stack snapshot.
+- `atomic_check_then_dec` (CVE-2026-43121) — `atomic_read()` +
+  `atomic_dec()` as two separate ops instead of one atomic
+  read-modify-write, racing a concurrent `atomic_xchg()`/
+  `atomic_try_cmpxchg()`.
+- `rcu_bare_refcount_inc` (CVE-2026-63918) — bare `refcount_inc()` on an
+  object found via an RCU list/hlist walk, instead of
+  `refcount_inc_not_zero()`; broadened this pass to also cover the
+  `hlist_nulls_for_each_entry_rcu()` networking hash-table idiom.
+- `timer_delete_no_sync_before_free` (CVE-2026-23281) — a `timer_list`
+  field torn down with non-synchronizing `timer_delete()`/`del_timer()`
+  right before the containing object is freed, with no `_sync()` variant
+  in between.
+- `free_before_irq_sync` (CVE-2026-43426) — `kfree()` before
+  `free_irq()`/`devm_free_irq()` later in the same function: an ordering
+  violation, since only the latter both unregisters the handler and waits
+  out an in-flight invocation. Tree-wide sweep: 45 hits, dominant
+  false-positive classes documented (loop-iteration conflation,
+  unrelated-object pairing); one separate low-severity lead surfaced
+  (`drivers/misc/cardreader/rtsx_pcr.c`, a missing
+  `cancel_delayed_work_sync()` in a probe-failure unwind path) but not
+  pursued — reachable only via OOM/hardware-failure during probe.
+- `kthread_stop_without_get_task` (CVE-2026-46180) — `send_sig()` +
+  `kthread_stop()` on a self-terminating kthread with no
+  `get_task_struct()` bracketing. Tree-wide sweep surfaced 6 hits in
+  `drivers/target/iscsi/`, traced to the exact 2017 fix
+  (`5e0cf5e6c43b9e`, `conn_freed` + `connection_exit` atomic gate) already
+  present in current code — a textbook example of the tool re-finding an
+  already-fixed bug class by shape rather than a live one.
+- `list_del_before_call_rcu` (CVE-2026-46324) — plain `list_del()`
+  immediately followed by `call_rcu()` in the same function; a concurrent
+  RCU reader mid-traversal through the just-poisoned node can dereference
+  `LIST_POISON1`/`2`. Third member of an RCU-lifecycle rule family
+  (alongside `rcu_bare_refcount_inc` on the reader side).
+- `linked_inode_no_igrab` — a second inode reached through a pointer field
+  on the function's primary inode argument, dereferenced without
+  `igrab()` (the f2fs atomic-write/COW-inode UAF family, multiple
+  `e0288584baa5`-adjacent fixes). Tree-wide sweep: 130+ hits — `X->Y->
+  i_mapping` is a very common *safe* idiom for stably-owned objects
+  (`fs/open.c`, `drm_file.c`), so this rule is documented as needing
+  targeted use against a named suspect field, not a blind sweep.
+- `xa_erase_stale_iter` (CVE-2026-46316, KVM vgic-its) — an
+  `xa_for_each()` loop calls `xa_erase()` but discards the return value
+  and passes the stale loop-iterator pointer to a cleanup/put function
+  instead — two concurrent contexts that both observed the same entry can
+  both proceed to put it.
+
+**Two existing rules had their false-positive floods root-caused and
+fixed**, found via full-tree sweeps against `linux-upstream` (not just the
+bundled ground-truth fixtures):
+
+- `inplace_decrypt_no_cow` had **no mitigation check at all** — it flagged
+  every in-place AEAD decrypt, including ones already guarded by
+  `skb_cow_data()`. Added the missing `skb_to_sgvec()`-derivation
+  requirement and a `skb_has_shared_frag()` exclusion; ground truth
+  updated to match the real `esp4.c`/`tipc_aead_decrypt()` structure.
+- `shared_iv_no_snapshot` went through three rounds of exclusion fixes
+  this pass (locally-`kzalloc`'d same-function contexts, then
+  `crypto_gcm_reqctx()`/`aead_request_ctx()`/`skcipher_request_ctx()`-derived
+  contexts) after tree-wide sweeps kept surfacing safe local/synchronous
+  buffers. The one real, still-correctly-flagged hit throughout every
+  round remained `algif_skcipher.c:148` — the tool's own original
+  disclosure.
+
+**Also fixed:** `--metrics=off` is now always passed to `semgrep` — without
+it, Semgrep phones home before scanning and was observed hanging for 50+
+minutes on a network-restricted analysis machine, silently stalling two
+tree-wide scans this session before being caught.
+
+**Disclosure: CVE-2026-74578 assigned** to the original algif_skcipher
+ground-truth finding (CVSS 3.1: 7.1 HIGH) — see the
+[Disclosure](README.md#disclosure) section for the full record, including
+why mainline itself was unaffected (AIO-on-sockets already removed there
+for unrelated reasons) and why the CVE text itself doesn't name the
+reporter.
+
+**CI hardening (this sync pass):** `.github/workflows/ci.yml` never
+installed Coccinelle, so the 20 `spatch`-only ground-truth tests (rules
+with no built-in-matcher fallback) silently skipped in every CI run
+instead of actually executing — `pytest -q` reported passing without ever
+exercising a fifth of the suite. Added `apt-get install coccinelle` as a
+CI step and switched to `pytest -q -rs` so skips are visible in the log
+instead of hidden inside a green checkmark. Also added `pyyaml` to
+`requirements.txt` — `src/scanner`'s Semgrep-exporter tests import it
+directly and it is not a transitive dependency of the `semgrep` package
+itself, so a clean `pip install -r requirements.txt` was one dependency
+short of what the test suite actually needs.
+
+Test count at the end of this pass: 115 passed, 10 xfailed (up from the
+prior baseline of ~97 passed) on a machine with `spatch` on `PATH`; on a
+machine without it, the 10 `spatch`-only-rule ground-truth tests skip
+instead of xfailing, for 105 passed / 20 skipped — see the CI fix above
+for why this environment split matters and is now visible rather than
+silently green either way.
+
 ## v2.6 — third review round: the fixes' own bugs (2026-07-20)
 
 The reviewer re-checked v2.5 and found a bug inside each of the two code fixes
