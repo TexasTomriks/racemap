@@ -1,5 +1,9 @@
 # racemap — docker compose convenience wrapper.
 #
+# 0. On Linux, create ./results yourself first (mkdir -p kernel results):
+#    the container runs as uid 1000, not root, and if Docker auto-creates
+#    a missing bind-mount directory on first run it does so as root:root,
+#    which that user then can't write export/benchmark output into.
 # 1. Put (or symlink) your Linux kernel source under ./kernel/
 # 2. Build:    docker compose build
 # 3. Validate: docker compose run --rm racemap validate
@@ -31,11 +35,19 @@ services:
     entrypoint: ["python"]
     command: ["web/server.py"]
     environment:
-      # Required: binding to 127.0.0.1 (the safe default) would be unreachable
-      # from the host despite the port mapping below.
+      # Required: binding to 127.0.0.1 *inside the container* would be
+      # unreachable from the host despite the port mapping below -- this is
+      # about the container's own loopback, not host exposure. The port
+      # mapping below is what actually controls host-side exposure, and it
+      # stays loopback-only by default: there is no authentication in front
+      # of the web UI, and it accepts absolute filesystem paths to scan, so
+      # binding it to a routable interface exposes local file contents to
+      # anyone who can reach the port.
       - RACEMAP_HOST=0.0.0.0
     ports:
-      - "5005:5005"
+      # Host-side loopback-only. Widen deliberately (e.g. "5005:5005" for
+      # all interfaces) only on a network you already trust.
+      - "127.0.0.1:5005:5005"
     volumes:
       - ./kernel:/kernel:ro
       - ./results:/app/results

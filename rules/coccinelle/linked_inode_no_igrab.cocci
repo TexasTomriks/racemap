@@ -24,9 +24,8 @@
 // pattern targeted at genuinely inode-typed linked objects without
 // needing struct-type information Coccinelle doesn't have here, and
 // matches the exact fidelity of the one ground-truth bug class found so
-// far. May need broadening (or a database-driven per-field-name spec, cf.
-// queuemap's model) if a similar bug is found through a different
-// second-hop field.
+// far. May need broadening (or a database-driven per-field-name spec) if
+// a similar bug is found through a different second-hop field.
 //
 // TREE-WIDE WARNING (found 2026-08-26): a blind --dir /linux-upstream
 // sweep produced 130+ matches -- `X->Y->i_mapping` is an extremely

@@ -9,8 +9,9 @@ shape, synthetic fixture), free_before_irq_sync (CVE-2026-43426
 shape, synthetic fixture), kthread_stop_without_get_task
 (CVE-2026-46180 shape, synthetic fixture), list_del_before_call_rcu
 (CVE-2026-46324 shape, nf_tables), linked_inode_no_igrab (f2fs
-atomic_inode UAF shape), and xa_erase_stale_iter (CVE-2026-46316 shape,
-KVM vgic-its).
+atomic_inode UAF shape), xa_erase_stale_iter (CVE-2026-46316 shape,
+KVM vgic-its), and bt_deferred_queue_no_ref (no CVE assigned, hci_conn.c
+hci_enhanced_setup_sync() UAF shape).
 
 Requires `spatch` on PATH -- skips (not fails) if it's absent, since these
 patterns have no fallback path to exercise instead. If a --external-tools
@@ -100,6 +101,12 @@ CASES = [
         "cve_id": "CVE-2026-46316",
         "shared_field": "xa_erase_stale_iter",
     },
+    {
+        "id": "bt_deferred_queue_no_ref",
+        "path": GT_DIR / "hci_conn_sync" / "hci_enhanced_setup_sync.c",
+        "cve_id": "",  # no CVE assigned at time of writing (see README Validation)
+        "shared_field": "hci_conn*",
+    },
 ]
 
 
@@ -151,6 +158,8 @@ def test_cve_id_is_surfaced(scanner, triage, case) -> None:
     xfail rather than skip, so a future fix flips this green instead of the
     gap silently staying invisible.
     """
+    if not case["cve_id"]:
+        pytest.skip(f"{case['id']}: no CVE assigned, nothing to surface")
     results = triage.triage(scanner.scan(case["path"]))
     cve_ids = {r.candidate.cve_id for r in results if r.candidate.cve_id}
     if case["cve_id"] not in cve_ids:

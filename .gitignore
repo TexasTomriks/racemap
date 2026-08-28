@@ -1,6 +1,8 @@
 # Reviewer-facing / embargoed material — never commit
 docs/submission_evidence.md
 submission_evidence.md
+POTENTIAL-FINDINGS.md
+docs/POTENTIAL-FINDINGS.md
 
 # Generated artifacts
 results/

@@ -47,7 +47,7 @@
 // (`&rctx->u.chacha`, one more indirection level than either exclusion
 // above catches -- a genuinely long tail of per-algorithm "this is
 // request-scoped" idioms not chased further here), sec_crypto's confirmed
-// synchronous-fallback false positive (see POTENTIAL-FINDINGS.md), and
+// synchronous-fallback false positive, and
 // algif_skcipher.c -- the one real, already-disclosed hit (CVE-2026-74578),
 // correctly still flagged.
 //

@@ -31,9 +31,11 @@ Streamlit app (`src/ui/app.py`) is kept but the Flask UI is primary.
 ## Notes
 
 * Theme (light/dark) is held in a JS variable — no `localStorage`.
-* The call graph uses D3 v7 loaded from CDN (`static/d3.min.js` is a runtime
-  loader because the build sandbox blocked the CDN download). If D3 fails to
-  load, the graph falls back to a deterministic static SVG, so it always renders.
+* The call graph uses D3 v7.9.0, vendored at `static/d3.min.js` (unmodified
+  upstream bundle, not loaded from a CDN) so the graph — and the "runs
+  fully offline" claim — don't depend on network access. If it's ever
+  removed or fails to load for some other reason, the graph falls back to
+  a deterministic static SVG, so it always renders.
 
 ## Self-verification
 

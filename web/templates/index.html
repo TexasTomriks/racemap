@@ -5,7 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>RACEMAP // Kernel Race Scanner</title>
   <link rel="stylesheet" href="/static/style.css" />
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+  <!-- Vendored (not CDN) so the call graph, and the "runs fully offline"
+       claim, don't depend on network access. web/static/d3.min.js is the
+       unmodified d3 v7.9.0 UMD bundle from https://d3js.org (Mike Bostock,
+       ISC license) -- see its own header comment. -->
   <script src="/static/d3.min.js"></script>
 </head>
 <body>

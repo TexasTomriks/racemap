@@ -11,10 +11,12 @@ positives by judging whether each candidate is already adequately protected.
 
 ![Scan results](docs/screenshots/scan.png)
 
-*Captured on v1.0. The UI has picked up small changes since — an API-key hint in
-the sidebar, for one — and this predates the demo-fixture aliasing described
-under [Web UI](#web-ui), which is why it shows the real identifiers, exactly as
-a scan of an actual kernel tree still does.*
+*A scan of the bundled `tests/sample_kernel` fixtures — 23 candidates, 12
+likely races, 11 exonerated, matching the figures throughout this README.
+Because the target is one of the two bundled demo trees, a few identifiers
+are shown under generic aliases (`crypto_subsystem` instead of
+`algif_skcipher`, here); see [Web UI](#web-ui) for why, and note that a scan
+of a real kernel tree always shows the real identifiers.*
 
 ## How it works
 
@@ -71,8 +73,11 @@ docker run --rm racemap scan <path>
 
 # Web UI (overrides the CLI entrypoint, maps the Flask port; RACEMAP_HOST is
 # required — binding to the default 127.0.0.1 inside the container would be
-# unreachable from the host despite the port mapping)
-docker run --rm -p 5005:5005 -e RACEMAP_HOST=0.0.0.0 --entrypoint python racemap web/server.py
+# unreachable from the host despite the port mapping. -p 127.0.0.1:5005:5005
+# keeps the exposure to the host's own loopback: the web UI has no
+# authentication and accepts absolute filesystem paths to scan, so it
+# should not be reachable from anything other than localhost)
+docker run --rm -p 127.0.0.1:5005:5005 -e RACEMAP_HOST=0.0.0.0 --entrypoint python racemap web/server.py
 # open http://127.0.0.1:5005
 ```
 
@@ -160,12 +165,18 @@ is also included: `streamlit run src/ui/app.py`.
 Two separate things are measured here; the numbers below come from different
 commands and it is worth keeping them apart.
 
-**The ground-truth suite** lives in `tests/ground_truth/` and covers 20
-Coccinelle rules total, declared across `expected.json` (the 7 rules with a
-built-in-matcher fallback, so these run in the default hermetic `pytest`
-pass with no kernel toolchain needed) and `tests/test_coccinelle_only_rules.py`
-(10 rules with no fallback — these need `spatch` on `PATH` and skip
-otherwise, see the v2.7 CHANGELOG entry for why CI now installs it):
+**The ground-truth suite** lives in `tests/ground_truth/` and covers 19 of
+the 20 Coccinelle rules under `rules/coccinelle/`, declared across
+`expected.json` (the algif_skcipher disclosure plus 7 more rules with a
+built-in-matcher fallback — 8 total — so these run in the default hermetic
+`pytest` pass with no kernel toolchain needed) and
+`tests/test_coccinelle_only_rules.py` (11 rules with no fallback — these
+need `spatch` on `PATH` and skip otherwise, see the v2.7 CHANGELOG entry for
+why CI now installs it). The 20th rule, `io_uring_race`, is deliberately
+excluded from the ground-truth suite: it overlaps another rule's pattern
+closely enough that the two are ambiguous on some inputs, so it falls
+through to no verdict rather than a guess (see the v2.6 CHANGELOG entry) and
+isn't independently measured here.
 
 - the reported algif_skcipher race (**CVE-2026-74578**, see
   [Disclosure](#disclosure));
@@ -195,8 +206,10 @@ Each carries a vulnerable and a fixed variant, and the scanner must flag the
 former and exonerate the latter. Run it with:
 
 ```bash
-pytest tests/test_ground_truth.py
+pytest tests/test_ground_truth.py tests/test_coccinelle_only_rules.py
 ```
+
+(the second file needs `spatch` on `PATH` and skips otherwise — see above).
 
 `python main.py validate` is the CLI shortcut for the algif pair only — it is
 the fixture tied to the disclosure below, not the whole suite.

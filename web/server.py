@@ -10,6 +10,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+import os
 import sys
 import tempfile
 from pathlib import Path
@@ -38,14 +39,36 @@ KERNEL_VERSIONS = ["4.9", "5.4", "5.10", "5.15", "5.16", "6.0", "6.1",
 
 app = Flask(__name__, template_folder=str(ROOT / "web" / "templates"),
             static_folder=str(ROOT / "web" / "static"))
+# /api/live-scan reads an uploaded file fully into memory (f.read()); cap it
+# so a large upload can't be used to exhaust memory. 16 MiB comfortably
+# covers any single kernel source file.
+app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
 
 # Module-level last scan (for export endpoints).
 LAST_REPORT: ScanReport | None = None
 
 
+# Optional sandbox for deployments that expose the web UI beyond localhost:
+# when set, every scan/diff path must resolve under this directory. Unset by
+# default, matching the tool's normal local-dev use (scanning an arbitrary
+# kernel tree elsewhere on disk) -- there is no authentication in front of
+# these endpoints, so anyone relying on RACEMAP_HOST=0.0.0.0 for more than
+# loopback access should set this too.
+_ALLOWED_ROOT = os.environ.get("RACEMAP_ROOT")
+_ALLOWED_ROOT = Path(_ALLOWED_ROOT).resolve() if _ALLOWED_ROOT else None
+
+
 def _resolve(path: str) -> Path:
     p = Path(path)
-    return p if p.is_absolute() else (ROOT / path)
+    resolved = p if p.is_absolute() else (ROOT / path)
+    if _ALLOWED_ROOT is not None:
+        try:
+            resolved.resolve().relative_to(_ALLOWED_ROOT)
+        except ValueError:
+            raise PermissionError(
+                f"Path is outside RACEMAP_ROOT ({_ALLOWED_ROOT})"
+            )
+    return resolved
 
 
 # --------------------------------------------------------------------------- #
@@ -164,7 +187,10 @@ def api_scan():
     patch_gap = bool(data.get("patch_gap", True))
     subs = data.get("subsystems") or None
 
-    target = _resolve(path)
+    try:
+        target = _resolve(path)
+    except PermissionError as exc:
+        return jsonify({"error": str(exc)}), 403
     if not target.exists():
         return jsonify({"error": f"Path not found: {path}"}), 400
     try:
@@ -192,9 +218,13 @@ def api_scan():
 def api_diff():
     data = request.get_json(force=True, silent=True) or {}
     old, new = data.get("old", ""), data.get("new", "")
-    if not _resolve(old).exists() or not _resolve(new).exists():
+    try:
+        old_p, new_p = _resolve(old), _resolve(new)
+    except PermissionError as exc:
+        return jsonify({"error": str(exc)}), 403
+    if not old_p.exists() or not new_p.exists():
         return jsonify({"error": "Both paths must exist."}), 400
-    entries = diff_mode.compare(_resolve(old), _resolve(new), RULES_DIR)
+    entries = diff_mode.compare(old_p, new_p, RULES_DIR)
     counts = diff_mode.summary(entries)
     return jsonify({
         "summary": {"new": counts[diff_mode.NEW], "resolved": counts[diff_mode.RESOLVED],
@@ -326,10 +356,9 @@ def static_files(p):
 
 
 if __name__ == "__main__":
-    import os as _os
     # Defaults to loopback-only for safety on a bare-metal / local run. Inside
     # Docker, RACEMAP_HOST=0.0.0.0 is required for the -p 5005:5005 port
     # mapping to actually reach the process (binding to 127.0.0.1 inside the
     # container is only reachable from within the container's own netns).
-    host = _os.environ.get("RACEMAP_HOST", "127.0.0.1")
+    host = os.environ.get("RACEMAP_HOST", "127.0.0.1")
     app.run(host=host, port=5005, debug=False)

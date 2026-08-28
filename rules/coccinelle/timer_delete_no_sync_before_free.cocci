@@ -20,9 +20,8 @@
 // with the non-sync del_timer(), before the fix moved to
 // timer_delete_sync(). (That specific historical instance split the timer
 // teardown and the actual kfree() across two functions, so it doesn't
-// itself match this same-function rule -- see queuemap's
-// timer_delete_without_sync_free.json for the fuller writeup. This rule
-// targets the more common single-function variant of the same bug class.)
+// itself match this same-function rule. This rule targets the more common
+// single-function variant of the same bug class.)
 //
 // Detects: `timer_delete(&X->F);` (or del_timer, same shape) ... later ...
 // `kfree(X);` in the same function, with no timer_delete_sync()/

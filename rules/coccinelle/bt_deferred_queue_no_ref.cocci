@@ -29,7 +29,7 @@ virtual report
 identifier wrapper;
 identifier connval;
 identifier qfunc;
-expression hdev, cb, destroy, E1;
+expression hdev, destroy, E1;
 position p;
 @@
   wrapper->conn = connval;
@@ -55,7 +55,7 @@ coccilib.report.print_report(
 identifier wrapper;
 identifier connval;
 identifier qfunc;
-expression hdev, cb, destroy, E1;
+expression hdev, destroy, E1;
 @@
   hci_conn_get(connval);
   ... when any

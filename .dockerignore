@@ -1,0 +1,32 @@
+# Keep the build context (and therefore the image) free of anything that
+# .gitignore keeps out of git but COPY . /app would otherwise still bake
+# into the image layer -- including secrets, if a local .env happens to be
+# sitting in the tree at build time.
+.git/
+.github/
+
+docs/submission_evidence.md
+submission_evidence.md
+POTENTIAL-FINDINGS.md
+docs/POTENTIAL-FINDINGS.md
+
+results/
+web/screenshots/
+*.db
+*.sqlite
+__pycache__/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+racemap_report.json
+racemap_ollama.json
+
+.env
+*.key
+
+web/demo_record.py
+
+# Local-only, not needed inside the image
+session-notes/
+*.md
+!README.md

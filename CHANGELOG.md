@@ -5,18 +5,197 @@ Entries below track revisions to this repository **after** the Arsenal Europe
 string (`racemap --version`, currently 0.1.0), which has not changed: nothing
 here alters the scanner's published behaviour or figures.
 
+## v2.8 — fourth and fifth review rounds: ground-truth coverage gap, deployment hardening (2026-08-28)
+
+A fourth independent LLM review focused specifically on pre-release
+hardening (secrets, PII, Docker build hygiene, web UI exposure) rather than
+detector correctness. Two documentation claims it found didn't hold up on
+inspection, and it flagged two real deployment risks. A fifth review, run
+after installing `spatch` and exercising the full suite (not just the
+hermetic subset), caught this pass's own test-count arithmetic and three
+smaller bugs the new tests/config themselves introduced. Both rounds are
+folded in here rather than left as separate "fixed the fix" commits.
+
+- **Rule-count/coverage claim was wrong.** The v2.7 entry below and the
+  README's Validation section both said the ground-truth suite covered "20
+  rules" while the `expected.json` (7) + `test_coccinelle_only_rules.py`
+  (10) breakdown summed to 17, and separately claimed every v2.7 rule had a
+  paired fixture in `tests/test_ground_truth.py` when the 10 new spatch-only
+  rules actually live in `test_coccinelle_only_rules.py`, and
+  `bt_deferred_queue_no_ref` (the Bluetooth `hci_conn` rule) had **no
+  fixture at all** despite being listed as a ground-truth entry in the
+  README. Fixed the root cause rather than the wording: added
+  `tests/ground_truth/hci_conn_sync/hci_enhanced_setup_sync.c` (the shape
+  fixture the rule was always supposed to have) and registered it in
+  `test_coccinelle_only_rules.py`. The suite now covers 19 of the 20
+  `.cocci` rules — the 20th, `io_uring_race`, is deliberately excluded (see
+  v2.6) — and the "every rule has a paired fixture" claim is now actually
+  true. Also removed an unused `cb` expression metavariable from
+  `bt_deferred_queue_no_ref.cocci` (declared in both the `@race@` and
+  `@safe@` blocks, referenced in neither — a `spatch` warning that went
+  unnoticed because the rule had no test exercising it until now).
+- **Docker image had no `.dockerignore`.** `COPY . /app` picked up whatever
+  was in the build context verbatim — `.git`, `__pycache__`, `.pytest_cache`,
+  and (if one happened to exist locally at build time) `.env`. None of that
+  is gitignored-from-Docker, only gitignored-from-git. Added
+  `.dockerignore` mirroring `.gitignore` plus `.git/` itself.
+- **Web UI accepts absolute filesystem paths with no auth in front of it,
+  and both the README and `docker-compose.yml` tell you to bind it to
+  `0.0.0.0`.** `_resolve()` in `web/server.py` passed an absolute `path`
+  through unchanged, so `POST /api/scan {"path": "/etc"}` against a
+  `0.0.0.0`-bound instance scans and returns arbitrary local files as
+  candidate snippets. This is inherent to the tool's job (scanning a real
+  kernel tree means accepting arbitrary paths) so the fix doesn't restrict
+  the default: `docker-compose.yml`'s port mapping and the README's `docker
+  run` example now bind the host side to `127.0.0.1` only, and a new opt-in
+  `RACEMAP_ROOT` env var lets anyone who does need to expose the UI more
+  broadly sandbox `/api/scan` and `/api/diff` to one directory tree instead.
+  Also added `MAX_CONTENT_LENGTH` (16 MiB) — `/api/live-scan`'s file upload
+  read the whole body into memory with no cap.
+- **`web/static/d3.min.js` was never actually D3** — a 518-byte runtime
+  CDN-loader shim, while `index.html` *also* hardcoded a direct
+  `<script src=cdnjs.../d3.min.js>` tag above it, making the shim dead code
+  in the online case (by the time it ran, `window.d3` was already set) and
+  contradicting its own "offline fallback" design. First pass renamed the
+  shim to `d3-loader.js` and added `crossorigin`/`referrerpolicy` — a
+  second look pointed out those do nothing for integrity without a real
+  `integrity=` hash, and that guessing one is worse than not having it. So
+  instead: vendored the actual, unmodified d3 v7.9.0 UMD bundle at
+  `web/static/d3.min.js` (ISC license, upstream header comment kept intact)
+  and deleted the loader entirely — the call graph, and the "runs fully
+  offline" claim, no longer depend on network access or on trusting a CDN
+  at all, which is a strictly better fix than adding SRI to a fetch this
+  removes the need for.
+- `app.js`'s `esc()` HTML-escaper didn't escape `'`. Not currently
+  exploitable — every attribute it fills is double-quoted — but it's a
+  one-line fix and the kind of thing that bites the next person who adds a
+  single-quoted attribute.
+- Dockerfile ran as root with no `USER` directive. Added a non-root
+  `racemap` user — and on a second pass, moved the `useradd`/`chown` block
+  to *before* `VOLUME ["/kernel"]` instead of after, since a `RUN` following
+  a `VOLUME` instruction isn't reliably reflected in what a container sees
+  mounted there. In practice `/kernel` is always either bind-mounted (whose
+  ownership comes from the host side regardless) or left empty, so this had
+  no observed effect on the verified scan/test-suite/cache-write behavior
+  either way — it's a correctness fix, not a behavior change. Separately:
+  `docker-compose.yml`'s `./results` bind mount, if Docker auto-creates it
+  on a Linux host because it doesn't exist yet, is created `root:root` and
+  the `racemap` user can't write into it — added a note to create it
+  yourself first (`mkdir -p kernel results`) before first run.
+- **New**: `tests/test_web_server.py` — `web/server.py` and
+  `src/ui/app.py` (the unused-in-the-demo Streamlit dashboard) had zero
+  test coverage; either could have silently bit-rotted with nothing in CI
+  to notice. Seven smoke tests: index loads, `/api/scan` validates and
+  scans, `/api/cache-status` responds, `_resolve()`'s default and
+  `RACEMAP_ROOT`-restricted behavior, and a Streamlit import check — the
+  last of which, on a second look, needed its own fix: it imported
+  `src.ui.app` unconditionally, so it *failed* (not skipped) on any install
+  missing `streamlit`, exactly the "gap hidden until someone runs the
+  minimal install" failure mode the v2.7 CI fix above was about. Changed to
+  `pytest.importorskip("streamlit")` first.
+- **Unrelated housekeeping, same pass**: `docs/screenshots/scan.png` and
+  `live_scan.png` were still the v1.0 captures from before the disclosure
+  went public (see v2.2's note on this). Replaced both with fresh captures
+  off the current UI. The new `scan.png` now shows the demo-fixture aliasing
+  in effect (`crypto_subsystem` in place of `algif_skcipher`) rather than
+  predating it, so the README's caption was rewritten to match instead of
+  explaining away a stale one; it's a viewport capture (chart, summary
+  cards, and 4 result rows) rather than a full-page capture of the entire
+  paginated table.
+- Two smaller correctness fixes the fifth review caught in this pass's own
+  new code: `test_coccinelle_only_rules.py`'s CVE-surfacing test ran even
+  for `bt_deferred_queue_no_ref`, which has no CVE to surface — always
+  xfailing for a reason unrelated to the real (and still open) gap it
+  documents, so it now `pytest.skip`s when a case's `cve_id` is empty
+  instead. And `test_web_server.py`'s default-`_resolve()` test asserted
+  `_ALLOWED_ROOT is None` outright, which would fail for a spurious reason
+  in anyone's shell that happens to export `RACEMAP_ROOT` — pinned via
+  `monkeypatch` instead, matching the other `RACEMAP_ROOT` test right next
+  to it. Also: README's ground-truth section said `pytest
+  tests/test_ground_truth.py` runs the just-described 19-rule suite, but
+  that file only covers the 8 `expected.json`-based rules — added
+  `tests/test_coccinelle_only_rules.py` to the documented command.
+- A sixth pass (independently verifying the vendored `d3.min.js` byte-for-byte
+  against the npm `d3@7.9.0` tarball, and re-running `--parse-cocci` across
+  all 20 rules) found one more of the same class of bug as the `cb`
+  metavariable above: `io_uring_race.cocci`'s `@netsend@` block declared
+  `n` but never used it (the sibling `@cryptbuf@` block in the same file
+  does use it, which is presumably how the first pass's `cb` fix didn't
+  also catch this one). `io_uring_race` is the one rule deliberately left
+  out of the ground-truth suite (see above), which is exactly why nothing
+  caught this either — same lesson as `cb`.
+- A seventh pass, diffing this repo against the Arsenal-accepted submission
+  rather than re-checking the code, found four public-facing comment
+  problems: (1) four `.cocci` rule headers referenced a private notes file
+  for further detail on a specific false positive or a not-pursued lead —
+  that file was never actually part of this repository, so every one of
+  those was a dead link; the wording of each now stands on its own instead
+  of gesturing at a file a reader can't reach, and both `.gitignore` and
+  `.dockerignore` gained a defensive entry for that filename in case one is
+  ever created and almost committed by habit. (2) Three rule headers named
+  an unpublished sibling project by
+  name (with two of its internal artifact filenames) with no context for a
+  reader who has no way to look it up — removed the name entirely rather
+  than adding context for a tool that isn't public, and generalized to
+  describing the shape of the precedent instead. (3)
+  `vnet_hdr_no_snapshot.cocci`'s own `Run:` comment cited a stale
+  pre-rename filename (`mmap_vnet_hdr_no_snapshot.cocci`) that doesn't
+  exist — fixed to the file's actual name. (4) The `rtsx_pcr.c` lead
+  (`free_before_irq_sync.cocci`, and the matching CHANGELOG entry below)
+  read as reporting an unfixed bug in a real upstream driver with no
+  disclosure framing; made the "not security-relevant, not reported
+  upstream" assessment explicit in both places instead of just "not
+  pursued."
+
+**A correction to the numbers above**, and to the v2.7 entry below: this
+entry originally quoted post-fix test totals (115 passed/11 xfailed,
+105 passed/22 skipped) that already included the `bt_deferred_queue_no_ref`
+fixture added *by* this same entry, and the v2.7 entry below was edited to
+match — which back-dated a count to before the fixture it depends on
+existed. v2.7's own text is restored below to what was actually true when
+it was written (10 rules, not 11; 20 test items, not 22).
+
+The real current totals — this project's test suite is sensitive to two
+independent toolchain pieces, `spatch` and `git`, so there are four
+combinations, all measured directly rather than inferred:
+
+| `spatch` | `git` | Result |
+|---|---|---|
+| absent | present | **112 passed / 22 skipped** |
+| present | absent (project's own Docker image) | **122 passed / 2 skipped / 10 xfailed** |
+| present | present (e.g. CI) | 123 passed / 1 skipped / 10 xfailed |
+| absent | absent | 111 passed / 23 skipped |
+
+Only the second row was measured inside the project's own Docker image
+(the only one of the four that image's fixed toolchain — spatch present,
+git absent — actually represents); the other three were measured on a
+development machine with `git` available, toggling `spatch` on and off
+`PATH`. The two skips in the Docker-image row are `bt_deferred_queue_no_ref`'s
+now-intentional CVE-surfacing skip and `test_git_log.py`'s own "git not
+available" check — the latter is why that row has one more skip (and one
+fewer pass) than the CI row, which is otherwise identical. Also confirmed:
+`docker build` succeeds and the resulting image runs as `racemap`, not
+`root`; `web/verify.py`'s Playwright pass is still green; and a manual pass
+over all 13 Flask routes still returns the same figures as before (`scan
+tests/sample_kernel` — 12 likely races / 23 candidates, unchanged).
+
 ## v2.7 — ground-truth expansion: 11 new CVE-derived rules, two false-positive-flood fixes, CVE-2026-74578 assigned (2026-08-24 to 2026-08-26)
 
 The largest single pass since the Arsenal submission: the rule set roughly
 doubled (9 → 20 Coccinelle rules) by working forward from real, recent
 (2026) upstream fix commits instead of writing rules against a single known
 CVE. Each new rule was validated the same way the original ground truth is:
-extracted the pre-fix and post-fix version of the real file via
+extracted the pre-fix and post-fix version of the real file (or, for the
+"shape" rules noted below, a synthetic fixture built to the same shape) via
 `git show <fix-commit>^:...` / `git show <fix-commit>:...`, ran it through
 `main.py scan --external-tools`, and confirmed the vulnerable variant flags
-and the fixed variant is exonerated, before adding it to `expected.json`
-and `tests/test_ground_truth.py`. Every rule below has a paired
-vulnerable/fixed fixture under `tests/ground_truth/`.
+and the fixed variant is exonerated, before adding it to
+`tests/test_coccinelle_only_rules.py` (these 10 rules have no built-in
+fallback, so they need `spatch` on `PATH`; `inplace_decrypt_no_cow` below is
+the one exception, already registered in `expected.json` from an earlier
+pass). All but `bt_deferred_queue_no_ref` below have a paired
+vulnerable/fixed fixture under `tests/ground_truth/` as of this entry —
+see v2.8 above for why, and for when that became true of all of them.
 
 **11 new rules, one per commit, each tied to a real fix:**
 
@@ -52,10 +231,12 @@ vulnerable/fixed fixture under `tests/ground_truth/`.
   violation, since only the latter both unregisters the handler and waits
   out an in-flight invocation. Tree-wide sweep: 45 hits, dominant
   false-positive classes documented (loop-iteration conflation,
-  unrelated-object pairing); one separate low-severity lead surfaced
+  unrelated-object pairing); one separate observation surfaced
   (`drivers/misc/cardreader/rtsx_pcr.c`, a missing
-  `cancel_delayed_work_sync()` in a probe-failure unwind path) but not
-  pursued — reachable only via OOM/hardware-failure during probe.
+  `cancel_delayed_work_sync()` in a probe-failure unwind path), assessed as
+  a robustness issue rather than security-relevant (OOM/hardware-failure
+  during probe only, no attacker-controlled path) and not reported
+  upstream on that basis.
 - `kthread_stop_without_get_task` (CVE-2026-46180) — `send_sig()` +
   `kthread_stop()` on a self-terminating kthread with no
   `get_task_struct()` bracketing. Tree-wide sweep surfaced 6 hits in
@@ -111,20 +292,21 @@ for unrelated reasons) and why the CVE text itself doesn't name the
 reporter.
 
 **CI hardening (this sync pass):** `.github/workflows/ci.yml` never
-installed Coccinelle, so the 20 `spatch`-only ground-truth tests (rules
-with no built-in-matcher fallback) silently skipped in every CI run
-instead of actually executing — `pytest -q` reported passing without ever
-exercising a fifth of the suite. Added `apt-get install coccinelle` as a
-CI step and switched to `pytest -q -rs` so skips are visible in the log
-instead of hidden inside a green checkmark. Also added `pyyaml` to
-`requirements.txt` — `src/scanner`'s Semgrep-exporter tests import it
-directly and it is not a transitive dependency of the `semgrep` package
-itself, so a clean `pip install -r requirements.txt` was one dependency
-short of what the test suite actually needs.
+installed Coccinelle, so the 10 `spatch`-only rules in
+`tests/test_coccinelle_only_rules.py` (20 test items — two tests per rule,
+no built-in-matcher fallback) silently skipped in every CI run instead of
+actually executing — `pytest -q` reported passing without ever exercising
+that fifth of the suite. Added `apt-get install coccinelle` as a CI step
+and switched to `pytest -q -rs` so skips are visible in the log instead of
+hidden inside a green checkmark. Also added `pyyaml` to `requirements.txt`
+— `src/scanner`'s Semgrep-exporter tests import it directly and it is not
+a transitive dependency of the `semgrep` package itself, so a clean
+`pip install -r requirements.txt` was one dependency short of what the
+test suite actually needs.
 
 Test count at the end of this pass: 115 passed, 10 xfailed (up from the
 prior baseline of ~97 passed) on a machine with `spatch` on `PATH`; on a
-machine without it, the 10 `spatch`-only-rule ground-truth tests skip
+machine without it, the 10 `spatch`-only rules' 20 test items skip
 instead of xfailing, for 105 passed / 20 skipped — see the CI fix above
 for why this environment split matters and is now visible rather than
 silently green either way.
@@ -413,11 +595,11 @@ An independent LLM review of v2 caught two real remaining issues:
   from the host even with `-p 5005:5005` mapped. Added a `RACEMAP_HOST` env var
   (defaults to `127.0.0.1` for safe local/bare-metal use), set to `0.0.0.0` in
   `docker-compose.yml`'s `web` service and in the README's `docker run` example.
+  (A reviewer separately flagged that GitFront appeared to still show v1
+  content; that was a CDN caching artifact on the reviewer's side, not an
+  actual sync problem — re-fetching with a cache-busting query param
+  confirmed GitFront was already serving v2 correctly.)
 
-(A reviewer also flagged that GitFront appeared to still show v1 content —
-that was a CDN caching artifact on the reviewer's side, not an actual sync
-problem; re-fetching with a cache-busting query param confirmed GitFront was
-already serving v2 correctly.)
 ## v2 — post-acceptance reconciliation (2026-07-19)
 
 The patch series was accepted by the stable maintainers on 2026-07-17 and the

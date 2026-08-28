@@ -20,9 +20,8 @@
 // use-after-free in ISR during device removal" -- usbhs_remove() froze
 // pipe resources via usbhs_pipe_remove() before devm_free_irq() (that
 // specific instance is object/tear-down-helper shaped rather than a bare
-// kfree(), see queuemap's usbhs_remove_irq_sync.json for that exact
-// reduction; this rule generalizes to the more literal kfree()-before-
-// free_irq() variant of the same ordering mistake).
+// kfree(); this rule generalizes to the more literal
+// kfree()-before-free_irq() variant of the same ordering mistake).
 //
 // TREE-WIDE REVIEW (2026-08-24): 45 hits on a full-tree sweep. The
 // dominant false-positive class is LOOP-ITERATION CONFLATION: Coccinelle's
@@ -35,11 +34,14 @@
 // free_irq()'s dev-arg not actually being the same object/data the ISR
 // touches (this rule has no cross-reference for that -- see
 // drivers/misc/cardreader/rtsx_pcr.c:1582 for a concrete instance, whose
-// investigation also surfaced a DIFFERENT, low-severity, not-pursued lead:
-// a probe()-failure path there frees pcr->slots without
+// investigation also surfaced a separate observation in the same file: a
+// probe()-failure path there frees pcr->slots without
 // cancel_delayed_work_sync(&pcr->carddet_work), which free_irq() alone
-// does not protect against; see POTENTIAL-FINDINGS.md). Every hit still
-// needs manual verification of what the ISR actually dereferences.
+// does not protect against. Assessed as a robustness issue, not
+// security-relevant -- reachable only via an OOM/hardware failure during
+// probe, with no attacker-controlled trigger path -- so not reported
+// upstream). Every hit still needs manual verification of what the ISR
+// actually dereferences.
 //
 // Detects: kfree(X); ... free_irq(...)|devm_free_irq(...); in one function.
 // Exonerates: free_irq()/devm_free_irq() called before the kfree().

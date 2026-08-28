@@ -19,7 +19,7 @@
 //
 // Output convention: each match prints  // RACEMAP:<file>:<line>:<field>
 //
-// Run:  spatch --sp-file mmap_vnet_hdr_no_snapshot.cocci -D report --dir <kernel>/net
+// Run:  spatch --sp-file vnet_hdr_no_snapshot.cocci -D report --dir <kernel>/net
 
 virtual report
 

@@ -20,9 +20,21 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 # Copy the project.
 COPY . /app
 
-# Mount point for the user's kernel source tree.
+# Run as an unprivileged user. /app and /kernel need to stay writable by it:
+# the cache db (~/.racemap), scan exports, and (for --external-tools) spatch
+# temp files all land under paths this user owns. Must come before VOLUME,
+# not after: a RUN following VOLUME does not reliably affect what a
+# container sees mounted there.
+RUN useradd --create-home --uid 1000 racemap \
+    && mkdir -p /kernel \
+    && chown -R racemap:racemap /app /kernel
+USER racemap
+
+# Mount point for the user's kernel source tree. In practice this is always
+# either bind-mounted (-v /path/to/linux:/kernel, or docker-compose's
+# ./kernel:/kernel:ro) or left as the empty dir above -- a bind mount's
+# ownership comes from the host side regardless of the chown above.
 VOLUME ["/kernel"]
-RUN mkdir -p /kernel
 
 # `docker run --rm racemap <args>` -> `python main.py <args>`.
 ENTRYPOINT ["python", "main.py"]

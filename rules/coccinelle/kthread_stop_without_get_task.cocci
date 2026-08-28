@@ -41,7 +41,7 @@
 // to see the cross-function `conn_freed`/`connection_exit` protection a
 // prior real fix specifically built for this exact case -- a clear
 // example of why every hit needs manual/LLM verification, not just
-// pattern matching. See POTENTIAL-FINDINGS.md for the full writeup.
+// pattern matching.
 //
 // Detects: send_sig(sig, task, ...); ... kthread_stop(task); with no
 // get_task_struct(task) call anywhere in the same function before the

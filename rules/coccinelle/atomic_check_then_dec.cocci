@@ -37,7 +37,7 @@
 // hit (fs/smb/server/smb2pdu.c:9507, ksmbd's opinfo->breaking_cnt) looked
 // plausibly racy on review but its impact, if real, is a plain counter
 // going wrong rather than a double-free/UAF like zcrx's -- not pursued
-// further; see POTENTIAL-FINDINGS.md.
+// further.
 //
 // Output convention: each match prints  // RACEMAP:<file>:<line>:<field>
 //

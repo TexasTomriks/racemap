@@ -8,8 +8,8 @@ let PAGE = 1, PER = 10;   // pagination state
 
 const $  = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
-const esc = (s) => String(s ?? "").replace(/[&<>"]/g,
-  c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g,
+  c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const trunc = (s, n = 14) => { s = String(s ?? ""); return s.length > n ? s.slice(0, n) + "…" : s; };
 
 /* ---------- inline SVG icons (currentColor; render in headless Chromium) ---------- */

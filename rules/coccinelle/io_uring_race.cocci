@@ -8,7 +8,7 @@ virtual report
 
 // Registered buffer sent over the network without a copy.
 @netsend exists@
-expression sock, msg, n;
+expression sock, msg;
 identifier imu;
 position p;
 @@
